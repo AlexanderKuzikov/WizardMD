@@ -29,10 +29,30 @@ namespace WizardMD.Preview
 
         public void ShowContent(string html)
         {
-            _browser.Stop();
-            _browser.DocumentText = html;
+            DebugLog.Write("ShowContent: загрузка DocumentText, html.Length=" + html.Length);
+            try
+            {
+                _browser.Stop();
+                _browser.DocumentText = html;
+                DebugLog.Write("ShowContent done");
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"ShowContent EX: {ex}");
+                throw;
+            }
         }
 
-        public void StopLoading() => _browser.Stop();
+        public void StopLoading()
+        {
+            try
+            {
+                _browser.Stop();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
     }
 }

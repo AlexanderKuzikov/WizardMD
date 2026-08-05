@@ -27,24 +27,36 @@ namespace WizardMD.Preview
 
         public void Initialize(string pszFilePath, uint grfMode)
         {
+            DebugLog.Write($"Initialize path={pszFilePath}");
             _filePath = pszFilePath;
         }
 
         public void SetWindow(IntPtr hwnd, ref RECT rect)
         {
-            EnsureUi();
-            var r = rect;
-            var form = _form!;
-            form.Invoke((MethodInvoker)delegate
+            DebugLog.Write($"SetWindow hwnd=0x{hwnd.ToInt64():X} rect={rect.Left},{rect.Top},{rect.Right},{rect.Bottom}");
+            try
             {
-                NativeMethods.SetParent(form.Handle, hwnd);
-                MoveInto(form, r);
-                form.Show();
-            });
+                EnsureUi();
+                var r = rect;
+                var form = _form!;
+                form.Invoke((MethodInvoker)delegate
+                {
+                    NativeMethods.SetParent(form.Handle, hwnd);
+                    MoveInto(form, r);
+                    form.Show();
+                });
+                DebugLog.Write("SetWindow done");
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"SetWindow EX: {ex}");
+                throw;
+            }
         }
 
         public void SetRect(ref RECT rect)
         {
+            DebugLog.Write($"SetRect {rect.Left},{rect.Top},{rect.Right},{rect.Bottom}");
             var form = _form;
             if (form == null) return;
             var r = rect;
@@ -53,30 +65,41 @@ namespace WizardMD.Preview
 
         public void DoPreview()
         {
-            EnsureUi();
-            string html;
+            DebugLog.Write("DoPreview");
             try
             {
-                if (_filePath != null && File.Exists(_filePath))
+                EnsureUi();
+                string html;
+                try
                 {
-                    html = HtmlPage.Build(File.ReadAllText(_filePath), dark: false);
+                    if (_filePath != null && File.Exists(_filePath))
+                    {
+                        html = HtmlPage.Build(File.ReadAllText(_filePath), dark: false);
+                    }
+                    else
+                    {
+                        html = HtmlPage.Build("> *(WizardMD.Preview: файл не найден)*", dark: false);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    html = HtmlPage.Build("> *(WizardMD.Preview: файл не найден)*", dark: false);
+                    html = HtmlPage.Build("> **Ошибка чтения файла:**\n\n```\n" + ex.Message + "\n```", dark: false);
                 }
+
+                var form = _form!;
+                form.Invoke((MethodInvoker)delegate { form.ShowContent(html); });
+                DebugLog.Write("DoPreview done");
             }
             catch (Exception ex)
             {
-                html = HtmlPage.Build("> **Ошибка чтения файла:**\n\n```\n" + ex.Message + "\n```", dark: false);
+                DebugLog.Write($"DoPreview EX: {ex}");
+                throw;
             }
-
-            var form = _form!;
-            form.Invoke((MethodInvoker)delegate { form.ShowContent(html); });
         }
 
         public void Unload()
         {
+            DebugLog.Write("Unload");
             Thread? t;
             PreviewForm? form;
             lock (_sync)
@@ -93,31 +116,33 @@ namespace WizardMD.Preview
                 {
                     if (form != null) form.Invoke((MethodInvoker)form.Close);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // форма могла быть уже закрыта/разрушена — поток background, процесс сам завершит
+                    DebugLog.Write($"Unload close EX: {ex.Message}");
                 }
 
                 if (!t.Join(TimeSpan.FromSeconds(5)))
                 {
-                    // не завершился — background-поток умрёт вместе с процессом Explorer
+                    DebugLog.Write("Unload: поток не завершился за 5с");
                 }
             }
 
             _filePath = null;
+            DebugLog.Write("Unload done");
         }
 
         public void SetFocus()
         {
+            DebugLog.Write("SetFocus");
             var form = _form;
             if (form == null) return;
             try
             {
                 form.Invoke((MethodInvoker)delegate { form.Focus(); });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // ignore
+                DebugLog.Write($"SetFocus EX: {ex.Message}");
             }
         }
 
@@ -125,6 +150,7 @@ namespace WizardMD.Preview
         {
             var form = _form;
             phwnd = form != null && form.IsHandleCreated ? form.Handle : IntPtr.Zero;
+            DebugLog.Write($"QueryFocus hwnd=0x{phwnd.ToInt64():X}");
         }
 
         public uint TranslateAccelerator(ref MSG pmsg)
@@ -135,12 +161,14 @@ namespace WizardMD.Preview
 
         public void SetSite(object pUnkSite)
         {
+            DebugLog.Write($"SetSite {pUnkSite?.GetType().FullName ?? "null"}");
             // сайт не используем — держать ссылку на объект Explorer не нужно
         }
 
         public void GetSite(ref Guid riid, out object ppvSite)
         {
             ppvSite = null!; // сайт не храним
+            DebugLog.Write("GetSite -> null");
         }
 
         private void EnsureUi()
@@ -149,14 +177,25 @@ namespace WizardMD.Preview
             {
                 if (_form != null) return;
 
+                DebugLog.Write("EnsureUi: создание STA-потока");
                 _ready.Reset();
                 _uiThread = new Thread(new ThreadStart(delegate
                 {
-                    var form = new PreviewForm();
-                    _form = form;
-                    form.Show();
-                    _ready.Set();
-                    Application.Run(form);
+                    try
+                    {
+                        var form = new PreviewForm();
+                        _form = form;
+                        form.Show();
+                        DebugLog.Write("UI: форма создана и показана");
+                        _ready.Set();
+                        Application.Run(form);
+                        DebugLog.Write("UI: message loop завершён");
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog.Write($"UI thread EX: {ex}");
+                        try { _ready.Set(); } catch { }
+                    }
                 }))
                 {
                     IsBackground = true
