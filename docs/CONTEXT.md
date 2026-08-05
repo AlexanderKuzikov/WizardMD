@@ -28,6 +28,7 @@
 | 3 | med | Ассоциация .md → WizardMD.App.exe (реестр, `--register`). Команды готовы, не применены — спросить пользователя (переопределит текущий редактор) |
 | 4 | low | Подсветка: проверить визуально на реальных файлах, расширить языки при необходимости |
 | 6 | low | COM-превью: проверить визуально в Проводнике (WebBrowser legacy, кириллица/кодировка DocumentText) |
+| 7 | **high** | **COM-превью НЕ активируется в Explorer**: shellex-резолв работает (доказано подстановкой Edge-CLSID), но наш CLSID (mscoree+CodeBase) не создаётся — `%TEMP%\wizardmd-preview.log` пуст. Диагностика в HANDOFF.md |
 
 ## Грабли (из сессии)
 - Табы: offset-модель обязательна (SliceByColumn + PLine.Offset), иначе вложенные списки/цитаты ломаются. contentIndent для item = markerStartCol + markerLen + padding (padding по колонкам с откатом ≥5).
@@ -40,6 +41,8 @@
 - CLSID-ключи в реестре — **только в фигурных скобках** (`HKCU\Software\Classes\CLSID\{GUID}`), иначе CoCreateInstance → REGDB_E_CLASSNOTREG, хотя `reg query` показывает ключ.
 - `CLSIDFromProgID` (GetTypeFromProgID) НЕ видит per-user ProgID из HKCU — активация только по CLSID; ProgID регистрируем для справки.
 - net48 COM: InprocServer32 = mscoree.dll + значения Assembly/Class/CodeBase (file:// URI), ThreadingModel=Both — Explorer активирует по CLSID без regasm/GAC.
+- MOTW-блок («файл небезопасен» в preview pane) — **глобальное поведение ОС** для untrusted-файлов: показывается даже без хендлера (проверено на .txt). Не диагностический сигнал!
+- Превью-резолв по `shellex\{8895B1C6-...}` на расширении: HKCU-переопределение работает (PDF-тест). Для .md резолв работает (Edge-CLSID вызывался), НО наш mscoree-CLSID нет — разбор в HANDOFF.md.
 
 ## Журнал работ
 | Дата | Изменение |
