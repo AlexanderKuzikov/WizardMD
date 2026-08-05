@@ -17,9 +17,9 @@
 
 ## Дорожная карта
 
-3. **Ядро-парсер** `WizardMD.Core` — блоки + inline + AST + HtmlRenderer + spec-тесты (в работе)
-2. **Рендерер** `WizardMD.App` — WPF + WebView2, темы, подсветка
-1. **COM-превью** `WizardMD.Preview` — IPreviewHandler в Проводнике
+1. **COM-превью** `WizardMD.Preview` — IPreviewHandler в Проводнике (**готово**, работает через prevhost.exe)
+2. **Рендерер** `WizardMD.App` — WPF + WebView2, темы, подсветка (**готово**)
+3. **Ядро-парсер** `WizardMD.Core` — блоки + inline + AST + HtmlRenderer + spec-тесты (**готово**, 81.0% CommonMark 0.30)
 
 ## Быстрый старт
 
@@ -35,7 +35,7 @@ dotnet test WizardMD.sln
 
 ## Статус
 
-**v0.1.0** — каркас решения, окружение готово (SDK 8.0.423, WebView2 151). Начало шага 3.
+**v0.1.0** — все три шага готовы: ядро-парсер (CommonMark 81%), рендерер WPF+WebView2, COM-превью в Проводнике. Сборка зелёная, 87 тестов.
 
 ## Лицензия
 

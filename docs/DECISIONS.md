@@ -48,3 +48,25 @@
 - ComRegisterFunction не делаем: regasm не нужен, HKCU-запись — единственный надёжный путь.
 
 **Грабли:** ключи CLSID в реестре только в фигурных скобках (`CLSID\{GUID}`); `CLSIDFromProgID` не видит per-user ProgID — активация только по CLSID.
+
+## 2026-08-06: COM-превью — AppID + DllSurrogate=prevhost.exe обязательны для активации
+
+**Контекст:** CLSID (mscoree+CodeBase) резолвился (shellex-тесты), COM-активация из обычного процесса работала, но Explorer НЕ создавал объект (лог пуст, «Невозможно выполнить предварительный просмотр»).
+
+**Решение:** Регистрация по образцу Edge-PDF-хендлера:
+- CLSID + `AppID={GUID}` (новый, в Core `PreviewInfo.AppId`)
+- `HKCU\Software\Classes\AppID\{GUID}` → `DllSurrogate = %SystemRoot%\system32\prevhost.exe` (хендлер выгружается в prevhost.exe, а не в explorer)
+- `EnablePreviewHandler=1`, `AutomaticallyPreviewUntrustedFiles=1`
+
+**Результат:** превью заработало. Похоже, Explorer отказывается создавать mscoree-Inproc объекты напрямую в своём процессе (или требует AppID для unmanaged surrogates); prevhost — штатный механизм изоляции preview-хендлеров.
+
+**Побочный эффект:** DLL держится процессом prevhost.exe — перед пересборкой `taskkill /f /im prevhost.exe` (иначе MSB3021).
+
+## 2026-08-06: WebBrowser legacy — повторный рендер в одном процессе
+
+**Контекст:** первый рендер работает, повторные клики → «Переход на веб-страницу отменен» (MSHTML error page). Explorer переиспользует объект хендлера (ctor один раз), каждый раз создаётся новый PreviewForm.
+
+**Решение (три фикса вместе):**
+- `AllowNavigation = true` — `false` блокирует навигацию MSHTML после первой загрузки.
+- Убрать `WebBrowser.Stop()` перед `DocumentText` — Stop отменял новую навигацию.
+- В `Unload`: `SetParent(0)` + `Close` + `Dispose` формы — иначе MSHTML-COM-объекты копятся в процессе prevhost.exe.

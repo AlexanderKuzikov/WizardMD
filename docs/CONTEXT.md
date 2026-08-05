@@ -1,6 +1,6 @@
 # WizardMD — CONTEXT
 
-> Последнее обновление: 2026-08-05
+> Последнее обновление: 2026-08-06
 
 ## Статус
 | Компонент | Статус | Версия/Заметка |
@@ -9,7 +9,7 @@
 | Решение | создано | WizardMD.sln: Core (netstandard2.0), App (net8.0-windows WPF), Tests (xUnit) |
 | Ядро-парсер | **готово** | Шаг 3. BlockParser + InlineParser + AST + HtmlRenderer. **spec.json 0.30: 528/652 (81.0%)** — цель 80-90% достигнута |
 | Рендерер | **готово** | Шаг 2. WPF + WebView2 (NuGet 1.0.2592.51), темы light/dark, подсветка синтаксиса (zero-dep JS, 20 языков), drag&drop, Ctrl+O, CLI `<file.md>` |
-| COM-превью | **готово** | Шаг 1. `WizardMD.Preview` (net48, IPreviewHandler). WebBrowser legacy на собственном STA-потоке. Регистрация HKCU (`--register-preview`), CLSID `48A5B98A-BFE6-4E21-9CAA-876A31963DC2`. Smoke: COM-активация + Initialize + DoPreview + Unload — OK |
+| COM-превью | **готово** | Шаг 1. `WizardMD.Preview` (net48, IPreviewHandler). WebBrowser legacy на собственном STA-потоке. Регистрация HKCU (`--register-preview`): mscoree + AppID + DllSurrogate=prevhost + EnablePreviewHandler. **Работает в Проводнике** (2026-08-06, повторные клики ок) |
 | GitHub | синхронизирован | Коммиты в main (частично GitHub Desktop autocommit) |
 
 ## Что реализовано в ядре (шаг 3)
@@ -27,8 +27,6 @@
 | 2 | med | Рендерер: относительные пути картинок не работают (NavigateToString, base about:blank). Решение — `SetVirtualHostNameToFolderMapping` на папку файла |
 | 3 | med | Ассоциация .md → WizardMD.App.exe (реестр, `--register`). Команды готовы, не применены — спросить пользователя (переопределит текущий редактор) |
 | 4 | low | Подсветка: проверить визуально на реальных файлах, расширить языки при необходимости |
-| 6 | low | COM-превью: проверить визуально в Проводнике (WebBrowser legacy, кириллица/кодировка DocumentText) |
-| 7 | **high** | **COM-превью НЕ активируется в Explorer**: shellex-резолв работает (доказано подстановкой Edge-CLSID), но наш CLSID (mscoree+CodeBase) не создаётся — `%TEMP%\wizardmd-preview.log` пуст. Диагностика в HANDOFF.md |
 
 ## Грабли (из сессии)
 - Табы: offset-модель обязательна (SliceByColumn + PLine.Offset), иначе вложенные списки/цитаты ломаются. contentIndent для item = markerStartCol + markerLen + padding (padding по колонкам с откатом ≥5).
@@ -42,11 +40,14 @@
 - `CLSIDFromProgID` (GetTypeFromProgID) НЕ видит per-user ProgID из HKCU — активация только по CLSID; ProgID регистрируем для справки.
 - net48 COM: InprocServer32 = mscoree.dll + значения Assembly/Class/CodeBase (file:// URI), ThreadingModel=Both — Explorer активирует по CLSID без regasm/GAC.
 - MOTW-блок («файл небезопасен» в preview pane) — **глобальное поведение ОС** для untrusted-файлов: показывается даже без хендлера (проверено на .txt). Не диагностический сигнал!
-- Превью-резолв по `shellex\{8895B1C6-...}` на расширении: HKCU-переопределение работает (PDF-тест). Для .md резолв работает (Edge-CLSID вызывался), НО наш mscoree-CLSID нет — разбор в HANDOFF.md.
+- **COM-превью без AppID+prevhost не активируется в Explorer**: CLSID (mscoree+CodeBase) резолвится, но объект не создаётся. Решение — AppID + `DllSurrogate=%SystemRoot%\system32\prevhost.exe` (по образцу Edge-PDF) + `EnablePreviewHandler=1` + `AutomaticallyPreviewUntrustedFiles=1`.
+- **WebBrowser legacy: повторный рендер в том же процессе → «Переход на веб-страницу отменен»** (MSHTML error page). Причины и фиксы: `AllowNavigation=false` блокирует навигацию после первой загрузки → `true`; `Stop()` перед `DocumentText` отменяет новую навигацию → убрать; форма только `Close` без `Dispose` копит MSHTML-объекты в prevhost → `SetParent(0)` + `Close` + `Dispose` в Unload.
+- **prevhost.exe держит net48 DLL** (WizardMD.Preview и WizardMD.Core): пересборка падает с MSB3021 «file is being used» → `taskkill /f /im prevhost.exe` перед сборкой.
 
 ## Журнал работ
 | Дата | Изменение |
 |------|-----------|
+| 2026-08-06 | **COM-превью починено в Проводнике** (open #7 закрыта): причина — неактивация CLSID в Explorer. Решение по образцу Edge-PDF: CLSID + AppID + `DllSurrogate=prevhost.exe` + `EnablePreviewHandler=1` + `AutomaticallyPreviewUntrustedFiles=1` (регистратор `--register-preview` дополнен, AppID в `PreviewInfo`). Повторный рендер «Переход на веб-страницу отменен»: `AllowNavigation=true`, убран `Stop()`, в Unload `SetParent(0)+Close+Dispose` (иначе MSHTML копится в prevhost). Диагностика: `[ModuleInitializer]` (net48-трюк) + `%TEMP%\wizardmd-preview.log`. Работает: повторные клики по .md, кириллица ок |
 | 2026-08-05 | Шаг 1 (COM-превью): `WizardMD.Preview` (net48, IPreviewHandler + IInitializeWithFile + IObjectWithSite), WebBrowser legacy на собственном STA-потоке (PreviewForm + Application.Run, SetParent/MoveWindow в hwnd Explorer), регистрация HKCU через `--register-preview`/`--unregister-preview` (mscoree + Assembly/Class/CodeBase, shellex .md, PreviewHandlers), идентификаторы в Core `PreviewInfo`, ассоциация .md (`--register`/`--unregister`, OpenWithProgids без переопределения дефолта). Smoke: COM-активация по CLSID + Initialize + DoPreview + Unload OK. Explorer перезапущен. 87 тестов зелёные |
 | 2026-08-05 | HTML-шаблон (MarkdownPage) перенесён в Core как `HtmlPage` — переиспользуется App и будущим Preview. Core.csproj + LangVersion latest |
 | 2026-08-05 | Шаг 2 (рендерер): WPF + WebView2, `MarkdownPage` (темы light/dark через CSS-переменные, zero-dep JS-подсветка 20 языков), открытие файла (CLI-аргумент, Ctrl+O, drag&drop), smoke-тест старта. 87 тестов зелёные |

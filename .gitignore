@@ -8,6 +8,9 @@ obj/
 # Build output
 artifacts/
 
+# Debug artifacts
+preview-debug.log
+
 # IDE
 .idea/
 .vscode/

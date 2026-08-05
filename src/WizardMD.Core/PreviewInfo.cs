@@ -7,6 +7,7 @@ namespace WizardMD.Core;
 public static class PreviewInfo
 {
     public const string Clsid = "48A5B98A-BFE6-4E21-9CAA-876A31963DC2";
+    public const string AppId = "72D320C1-5FBC-407B-9807-2B41A92C4153";
     public const string ProgId = "WizardMD.Preview";
     public const string DisplayName = "WizardMD Markdown Preview";
     public const string ClassName = "WizardMD.Preview.PreviewHandler";

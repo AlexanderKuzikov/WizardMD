@@ -13,7 +13,9 @@ namespace WizardMD.App;
 public static class PreviewRegistration
 {
     private const string Clsid = "{" + PreviewInfo.Clsid + "}";
+    private const string AppId = "{" + PreviewInfo.AppId + "}";
     private const string ClsidRoot = @"Software\Classes\CLSID\" + Clsid;
+    private const string AppIdRoot = @"Software\Classes\AppID\" + AppId;
     private const string ProgIdRoot = @"Software\Classes\" + PreviewInfo.ProgId;
     private const string MdShellex = @"Software\Classes\.md\shellex\" + PreviewInfo.IPreviewHandlerIid;
     private const string PreviewHandlers = @"Software\Microsoft\Windows\CurrentVersion\PreviewHandlers";
@@ -35,6 +37,9 @@ public static class PreviewRegistration
         using (var clsid = Registry.CurrentUser.CreateSubKey(ClsidRoot))
         {
             clsid.SetValue("", PreviewInfo.DisplayName);
+            clsid.SetValue("AppID", AppId);
+            clsid.SetValue("EnablePreviewHandler", 1);
+            clsid.SetValue("AutomaticallyPreviewUntrustedFiles", 1);
             using (var inproc = clsid.CreateSubKey("InprocServer32"))
             {
                 inproc.SetValue("", mscoree);
@@ -43,6 +48,12 @@ public static class PreviewRegistration
                 inproc.SetValue("CodeBase", codeBase);
                 inproc.SetValue("ThreadingModel", "Both");
             }
+        }
+
+        using (var appId = Registry.CurrentUser.CreateSubKey(AppIdRoot))
+        {
+            appId.SetValue("", PreviewInfo.DisplayName);
+            appId.SetValue("DllSurrogate", @"%SystemRoot%\system32\prevhost.exe");
         }
 
         using (var progId = Registry.CurrentUser.CreateSubKey(ProgIdRoot))
@@ -68,6 +79,7 @@ public static class PreviewRegistration
     public static void Unregister()
     {
         DeleteKey(ClsidRoot);
+        DeleteKey(AppIdRoot);
         DeleteKey(ProgIdRoot);
         DeleteKey(MdShellex);
         using (var handlers = Registry.CurrentUser.OpenSubKey(PreviewHandlers, writable: true))
