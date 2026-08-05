@@ -24,7 +24,6 @@ public class SpecTests
         var failed = new List<(int example, string section, string md, string expected, string actual)>();
         foreach (var ex in examples)
         {
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "spec-progress.txt"), $"#{ex.example}");
             string actual = WizardMD.Core.Markdown.ToHtml(ex.markdown);
             if (actual == ex.html) passed++;
             else failed.Add((ex.example, ex.section, ex.markdown, ex.html, actual));

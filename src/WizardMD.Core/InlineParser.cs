@@ -140,6 +140,10 @@ namespace WizardMD.Core
                 }
             }
             Flush(sb, nodes);
+            if (_trimLineWhitespace && nodes.Count > 0 && nodes[nodes.Count - 1] is TextNode last)
+            {
+                nodes[nodes.Count - 1] = new TextNode(last.Text.TrimEnd(' ', '\t'));
+            }
             return ProcessDelimiters(nodes);
         }
 
@@ -225,11 +229,14 @@ namespace WizardMD.Core
                 if (TryParseLinkDest(after + 1, out string url, out string title, out int destEnd)
                     && destEnd < _text.Length && _text[destEnd] == ')')
                 {
-                    newPos = destEnd + 1;
-                    EmitLinkNode(nodes, isImage, url, title, text);
-                    return;
+                    if (isImage || !ContainsNestedLink(text))
+                    {
+                        newPos = destEnd + 1;
+                        EmitLinkNode(nodes, isImage, url, title, text);
+                        return;
+                    }
                 }
-                if (TryShortcutLink(text, isImage, nodes, out int sp))
+                if (TryShortcutLink(text, isImage, nodes, close + 1, out int sp))
                 {
                     newPos = sp;
                     return;
@@ -243,7 +250,7 @@ namespace WizardMD.Core
                     string label = _text.Substring(after + 1, close2 - after - 1);
                     if (label.Length == 0) label = text;
                     string norm = MarkdownUtil.NormalizeLabel(label);
-                    if (_references.TryGetValue(norm, out LinkReference rf))
+                    if (_references.TryGetValue(norm, out LinkReference rf) && (isImage || !ContainsNestedLink(text)))
                     {
                         newPos = close2 + 1;
                         EmitLinkNode(nodes, isImage, rf.Url, rf.Title, text);
@@ -253,12 +260,15 @@ namespace WizardMD.Core
             }
             else
             {
-                string norm = MarkdownUtil.NormalizeLabel(text);
-                if (_references.TryGetValue(norm, out LinkReference rf))
+                if (text.IndexOf('[') < 0 && text.IndexOf(']') < 0)
                 {
-                    newPos = close + 1;
-                    EmitLinkNode(nodes, isImage, rf.Url, rf.Title, text);
-                    return;
+                    string norm = MarkdownUtil.NormalizeLabel(text);
+                    if (_references.TryGetValue(norm, out LinkReference rf) && (isImage || !ContainsNestedLink(text)))
+                    {
+                        newPos = close + 1;
+                        EmitLinkNode(nodes, isImage, rf.Url, rf.Title, text);
+                        return;
+                    }
                 }
             }
 
@@ -266,9 +276,29 @@ namespace WizardMD.Core
             newPos = bracketPos + (isImage ? 2 : 1);
         }
 
-        private bool TryShortcutLink(string text, bool isImage, List<InlineNode> nodes, out int newPos)
+        private bool ContainsNestedLink(string text)
         {
-            newPos = 0;
+            var parsed = new InlineParser(text, _references).Parse();
+            return ContainsLinkNode(parsed);
+        }
+
+        private static bool ContainsLinkNode(List<InlineNode> nodes)
+        {
+            foreach (var n in nodes)
+            {
+                if (n is LinkNode) return true;
+                if (n is StrongNode s && ContainsLinkNode(s.Children)) return true;
+                if (n is EmphasisNode e && ContainsLinkNode(e.Children)) return true;
+                if (n is StrikethroughNode d && ContainsLinkNode(d.Children)) return true;
+                if (n is ImageNode i && ContainsLinkNode(i.Children)) return true;
+                if (n is LinkNode l && ContainsLinkNode(l.Children)) return true;
+            }
+            return false;
+        }
+
+        private bool TryShortcutLink(string text, bool isImage, List<InlineNode> nodes, int newPosArg, out int newPos)
+        {
+            newPos = newPosArg;
             string norm = MarkdownUtil.NormalizeLabel(text);
             if (!_references.TryGetValue(norm, out LinkReference rf)) return false;
             EmitLinkNode(nodes, isImage, rf.Url, rf.Title, text);
@@ -284,6 +314,32 @@ namespace WizardMD.Core
                 if (c == '\\' && j + 1 < _text.Length)
                 {
                     j++;
+                    continue;
+                }
+                if (c == '`')
+                {
+                    int k = j;
+                    while (k < _text.Length && _text[k] == '`') k++;
+                    int ticks = k - j;
+                    int m = k;
+                    bool closed = false;
+                    while (m < _text.Length)
+                    {
+                        if (_text[m] == '`')
+                        {
+                            int n = m;
+                            while (n < _text.Length && _text[n] == '`') n++;
+                            if (n - m == ticks)
+                            {
+                                j = n - 1;
+                                closed = true;
+                                break;
+                            }
+                            m = n;
+                        }
+                        else m++;
+                    }
+                    if (!closed) return -1;
                     continue;
                 }
                 if (c == '[') depth++;
@@ -303,7 +359,7 @@ namespace WizardMD.Core
             if (isImage)
             {
                 var img = new ImageNode { Url = cleanUrl, Title = cleanTitle };
-                img.Children.AddRange(new InlineParser(PlainText(text), null).Parse());
+                img.Children.AddRange(new InlineParser(text, _references).Parse());
                 nodes.Add(img);
             }
             else
@@ -422,7 +478,7 @@ namespace WizardMD.Core
             }
             string inner = _text.Substring(lt + 1, close - lt - 1);
             int colon = inner.IndexOf(':');
-            if (colon > 0 && IsValidScheme(inner.Substring(0, colon)))
+            if (colon > 0 && IsValidScheme(inner.Substring(0, colon)) && HasNoCtl(inner.Substring(colon + 1)))
             {
                 string clean = MarkdownUtil.NormalizeUrl(inner);
                 nodes.Add(new AutoLinkNode { Url = clean, Label = inner });
@@ -441,7 +497,7 @@ namespace WizardMD.Core
 
         private static bool IsValidScheme(string scheme)
         {
-            if (scheme.Length == 0) return false;
+            if (scheme.Length < 2 || scheme.Length > 32) return false;
             if (!char.IsLetter(scheme[0])) return false;
             for (int i = 1; i < scheme.Length; i++)
             {
@@ -451,20 +507,23 @@ namespace WizardMD.Core
             return true;
         }
 
-        private static bool IsValidEmail(string s)
+        private static bool HasNoCtl(string s)
         {
-            int at = s.IndexOf('@');
-            if (at <= 0 || at == s.Length - 1) return false;
-            if (s.IndexOf('@', at + 1) >= 0) return false;
-            foreach (char c in s)
+            for (int i = 0; i < s.Length; i++)
             {
-                if (char.IsLetterOrDigit(c) || c == '.' || c == '+' || c == '_' || c == '-' || c == '!'
-                    || c == '#' || c == '$' || c == '%' || c == '&' || c == '\'' || c == '*' || c == '/'
-                    || c == '=' || c == '?' || c == '^' || c == '`' || c == '{' || c == '|' || c == '}' || c == '~')
-                    continue;
-                return false;
+                char c = s[i];
+                if (c == '<' || c == '>' || c <= 0x20) return false;
             }
             return true;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex EmailRegex =
+            new System.Text.RegularExpressions.Regex(
+                @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$");
+
+        private static bool IsValidEmail(string s)
+        {
+            return EmailRegex.IsMatch(s);
         }
 
         private static List<InlineNode> ProcessDelimiters(List<InlineNode> input)

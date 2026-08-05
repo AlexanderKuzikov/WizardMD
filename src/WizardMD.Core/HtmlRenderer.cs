@@ -240,6 +240,7 @@ namespace WizardMD.Core
                 else if (node is EmphasisNode e) sb.Append(PlainAlt(e.Children));
                 else if (node is StrikethroughNode d) sb.Append(PlainAlt(d.Children));
                 else if (node is ImageNode i) sb.Append(PlainAlt(i.Children));
+                else if (node is LinkNode l) sb.Append(PlainAlt(l.Children));
             }
             return sb.ToString();
         }

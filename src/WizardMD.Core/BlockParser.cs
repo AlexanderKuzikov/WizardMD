@@ -51,11 +51,20 @@ namespace WizardMD.Core
     {
         public string Text;
         public int Offset;
+        public bool IsLazy;
 
         public PLine(string text, int offset)
         {
             Text = text;
             Offset = offset;
+            IsLazy = false;
+        }
+
+        public PLine(string text, int offset, bool isLazy)
+        {
+            Text = text;
+            Offset = offset;
+            IsLazy = isLazy;
         }
     }
 
@@ -85,7 +94,9 @@ namespace WizardMD.Core
         {
             if (text == null) return new string[0];
             text = text.Replace("\r\n", "\n").Replace('\r', '\n');
-            return text.Split('\n');
+            var lines = new List<string>(text.Split('\n'));
+            if (lines.Count > 0 && lines[lines.Count - 1].Length == 0) lines.RemoveAt(lines.Count - 1);
+            return lines.ToArray();
         }
 
         public Document Parse()
@@ -98,9 +109,25 @@ namespace WizardMD.Core
 
         private void PreScanReferences()
         {
+            bool inFence = false;
+            char fenceChar = '\0';
             for (int i = 0; i < _lines.Length; i++)
             {
-                if (TryReferenceDefinition(_lines[i].Text, out LinkReference r) && !_references.ContainsKey(r.Label))
+                string line = _lines[i].Text;
+                if (inFence)
+                {
+                    if (IsClosingFence(line, fenceChar, 3)) inFence = false;
+                    continue;
+                }
+                if (TryFence(line, out string f, out _))
+                {
+                    inFence = true;
+                    fenceChar = f[0];
+                    continue;
+                }
+                if (IndentOfText(line) >= 4) continue;
+                if (IsBlankText(line)) continue;
+                if (TryReferenceDefinition(line, out LinkReference r) && !_references.ContainsKey(r.Label))
                     _references[r.Label] = r;
             }
         }
@@ -281,7 +308,9 @@ namespace WizardMD.Core
 
         private bool TryProcessFence(List<Node> container)
         {
-            if (!TryFence(_lines[_pos].Text, out string fence, out string info)) return false;
+            PLine openLine = _lines[_pos];
+            if (!TryFence(openLine.Text, out string fence, out string info)) return false;
+            int fenceIndent = IndentOf(openLine);
             char fenceChar = fence[0];
             int fenceLen = fence.Length;
             _pos++;
@@ -294,7 +323,8 @@ namespace WizardMD.Core
                     _pos++;
                     break;
                 }
-                sb.Append(l.Text);
+                int strip = Math.Min(fenceIndent, IndentOf(l));
+                sb.Append(SliceByColumn(l, l.Offset + strip).Text);
                 sb.Append('\n');
                 _pos++;
             }
@@ -398,27 +428,19 @@ namespace WizardMD.Core
                 if (TryBlockquote(l, out PLine content))
                 {
                     collected.Add(content);
-                    canLazy = !StartsNewBlock(content);
+                    canLazy = content.Text.Length > 0 && !StartsNewBlock(content);
                     _pos++;
                 }
                 else if (IsBlank(l))
                 {
                     int save = _pos;
                     while (_pos < _lines.Length && IsBlank(_lines[_pos])) _pos++;
-                    if (_pos < _lines.Length && TryBlockquote(_lines[_pos], out _))
-                    {
-                        collected.Add(new PLine("", 0));
-                        canLazy = false;
-                    }
-                    else
-                    {
-                        _pos = save;
-                        break;
-                    }
+                    _pos = save;
+                    break;
                 }
                 else if (canLazy && IsLazyContinuation(l))
                 {
-                    collected.Add(l);
+                    collected.Add(new PLine(l.Text, l.Offset, true));
                     _pos++;
                 }
                 else break;
@@ -492,7 +514,7 @@ namespace WizardMD.Core
                 {
                     int save = _pos;
                     while (_pos < _lines.Length && IsBlank(_lines[_pos])) _pos++;
-                    if (_pos < _lines.Length && _lines[_pos].Offset + IndentOf(_lines[_pos]) >= mi.ContentIndent)
+                    if (!ItemIsEmpty(lines) && _pos < _lines.Length && _lines[_pos].Offset + IndentOf(_lines[_pos]) >= mi.ContentIndent)
                     {
                         list.IsLoose = true;
                         lines.Add(new PLine("", l.Offset));
@@ -652,10 +674,109 @@ namespace WizardMD.Core
 
         private bool TryProcessReference(List<Node> container)
         {
-            if (!TryReferenceDefinition(_lines[_pos].Text, out LinkReference reference)) return false;
-            if (!_references.ContainsKey(reference.Label)) _references[reference.Label] = reference;
-            _pos++;
+            if (container.Count > 0 && container[container.Count - 1] is ParagraphBlock && !_curWasBlank) return false;
+            int start = _pos;
+            if (ParseReferenceDefinition(out LinkReference reference, out int consumed))
+            {
+                if (!_references.ContainsKey(reference.Label)) _references[reference.Label] = reference;
+                _pos += consumed;
+                _lastBlankLine = true;
+                return true;
+            }
+            _pos = start;
+            return false;
+        }
+
+        private bool ParseReferenceDefinition(out LinkReference reference, out int consumed)
+        {
+            reference = null;
+            consumed = 1;
+            string t = _lines[_pos].Text;
+            t = t.Substring(Math.Min(IndentOfText(t), 3));
+            if (t.Length < 2 || t[0] != '[') return false;
+            int close = -1;
+            for (int j = 1; j < t.Length; j++)
+            {
+                if (t[j] == '\\' && j + 1 < t.Length) { j++; continue; }
+                if (t[j] == ']') { close = j; break; }
+            }
+            if (close <= 0) return false;
+            string label = t.Substring(1, close - 1);
+            if (label.Length == 0 || label.Length > 999 || label.IndexOf('[') >= 0) return false;
+            int i = close + 1;
+            if (i >= t.Length || t[i] != ':') return false;
+            i++;
+            while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) i++;
+
+            string url = null;
+            string title = null;
+            int lineIdx = 0;
+            if (i >= t.Length)
+            {
+                lineIdx = 1;
+                if (_pos + 1 >= _lines.Length) return false;
+                t = _lines[_pos + 1].Text.Trim();
+                i = 0;
+                consumed++;
+            }
+            if (i < t.Length)
+            {
+                if (t[i] == '<')
+                {
+                    int end = t.IndexOf('>', i + 1);
+                    if (end < 0) return false;
+                    url = t.Substring(i + 1, end - i - 1);
+                    i = end + 1;
+                }
+                else
+                {
+                    int end = i;
+                    while (end < t.Length && t[end] != ' ' && t[end] != '\t') end++;
+                    url = t.Substring(i, end - i);
+                    i = end;
+                }
+            }
+            bool titleSpace = false;
+            while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) { i++; titleSpace = true; }
+            if (i < t.Length)
+            {
+                char q = t[i];
+                if (!ParseTitle(t, ref i, q, titleSpace, out title)) return false;
+            }
+            else if (lineIdx < 2 && _pos + 2 < _lines.Length && !IsBlankText(_lines[_pos + 2].Text))
+            {
+                string t3 = _lines[_pos + 2].Text.Trim();
+                if (t3.Length > 0 && (t3[0] == '"' || t3[0] == '\'' || t3[0] == '('))
+                {
+                    int ti = 0;
+                    if (ParseTitle(t3, ref ti, t3[0], true, out title))
+                    {
+                        consumed++;
+                        lineIdx = 2;
+                    }
+                }
+            }
+            reference = new LinkReference(MarkdownUtil.NormalizeLabel(label), MarkdownUtil.Unescape(url), title);
             return true;
+        }
+
+        private static bool ParseTitle(string t, ref int i, char q, bool titleSpace, out string title)
+        {
+            title = null;
+            if (q == '(' && !titleSpace) return false;
+            if (q != '"' && q != '\'' && q != '(') return false;
+            char closeQ = q == '(' ? ')' : q;
+            int end = -1;
+            for (int j = i + 1; j < t.Length; j++)
+            {
+                if (t[j] == '\\' && j + 1 < t.Length) { j++; continue; }
+                if (t[j] == closeQ) { end = j; break; }
+            }
+            if (end < 0) return false;
+            title = t.Substring(i + 1, end - i - 1);
+            i = end + 1;
+            while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) i++;
+            return i == t.Length;
         }
 
         private static bool TryReferenceDefinition(string line, out LinkReference reference)
@@ -690,20 +811,32 @@ namespace WizardMD.Core
                 url = t.Substring(i, end - i);
                 i = end;
             }
-            while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) i++;
+            bool titleSpace = false;
+            while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) { i++; titleSpace = true; }
             if (i < t.Length)
             {
                 char q = t[i];
+                if (q == '(' && !titleSpace) return false;
                 if (q == '"' || q == '\'')
                 {
-                    int end = t.IndexOf(q, i + 1);
+                    int end = -1;
+                    for (int j = i + 1; j < t.Length; j++)
+                    {
+                        if (t[j] == '\\' && j + 1 < t.Length) { j++; continue; }
+                        if (t[j] == q) { end = j; break; }
+                    }
                     if (end < 0) return false;
                     title = t.Substring(i + 1, end - i - 1);
                     i = end + 1;
                 }
                 else if (q == '(')
                 {
-                    int end = t.IndexOf(')', i + 1);
+                    int end = -1;
+                    for (int j = i + 1; j < t.Length; j++)
+                    {
+                        if (t[j] == '\\' && j + 1 < t.Length) { j++; continue; }
+                        if (t[j] == ')') { end = j; break; }
+                    }
                     if (end < 0) return false;
                     title = t.Substring(i + 1, end - i - 1);
                     i = end + 1;
@@ -743,14 +876,21 @@ namespace WizardMD.Core
                     _pos++;
                     continue;
                 }
-                if (lines.Count > 0 && TryListMarker(l, out ListMarkerInfo lm) && lm.IsOrdered && lm.Start != 1)
+                if (lines.Count > 0 && TryListMarker(l, out ListMarkerInfo lm2) && lm2.IsOrdered && lm2.Start != 1)
+                {
+                    lines.Add(l);
+                    _pos++;
+                    continue;
+                }
+                if (lines.Count > 0 && TryListMarker(l, out ListMarkerInfo lm3) && IsBlank(lm3.Content))
                 {
                     lines.Add(l);
                     _pos++;
                     continue;
                 }
                 if (StartsNewBlock(l)) break;
-                if (lines.Count > 0 && IsSetextUnderline(l.Text, out _)) break;
+                if (lines.Count > 0 && IsSetextUnderline(l.Text, out _) && !l.IsLazy) break;
+                if (lines.Count > 0 && IsTableDelimiter(l.Text, out _)) break;
                 lines.Add(l);
                 _pos++;
             }
@@ -885,7 +1025,7 @@ namespace WizardMD.Core
         {
             if (IsBlank(line)) return false;
             if (IndentOf(line) >= 4) return true;
-            string t = line.Offset < line.Text.Length ? line.Text.Substring(Math.Min(line.Offset, 3)) : "";
+            string t = line.Text.Substring(Math.Min(IndentOf(line), Math.Min(3, line.Text.Length)));
             if (t.Length == 0) return false;
             if (t[0] == '>') return true;
             if (TryAtx(line.Text, out _, out _)) return true;
@@ -898,8 +1038,7 @@ namespace WizardMD.Core
         private static bool IsLazyContinuation(PLine line)
         {
             if (IsBlank(line)) return false;
-            if (IndentOf(line) >= 4) return false;
-            string t = line.Offset < line.Text.Length ? line.Text.Substring(Math.Min(line.Offset, 3)) : "";
+            string t = line.Text.Substring(Math.Min(IndentOf(line), Math.Min(3, line.Text.Length)));
             if (t.Length == 0) return false;
             if (TryAtx(line.Text, out _, out _)) return false;
             if (IsThematicBreak(line.Text)) return false;

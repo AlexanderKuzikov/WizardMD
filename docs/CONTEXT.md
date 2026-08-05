@@ -5,27 +5,43 @@
 ## Статус
 | Компонент | Статус | Версия/Заметка |
 |-----------|--------|----------------|
-| Окружение | готово | .NET SDK 8.0.423 (`%LOCALAPPDATA%\dotnet`, PATH user), WebView2 151.0.4129.59, WPF templates |
-| Решение | создано | `WizardMD.sln`: WizardMD.Core (netstandard2.0), WizardMD.App (net8.0-windows WPF), WizardMD.Core.Tests (xUnit). Сборка зелёная, 0 ошибок |
-| Ядро-парсер | не начато | Шаг 3 — приоритет. Структура пустая (Class1 удалён) |
+| Окружение | готово | .NET SDK 8.0.423 (`%LOCALAPPDATA%\dotnet`, PATH user), WebView2 151.0.4129.59 |
+| Решение | создано | WizardMD.sln: Core (netstandard2.0), App (net8.0-windows WPF), Tests (xUnit) |
+| Ядро-парсер | **готово** | Шаг 3. BlockParser + InlineParser + AST + HtmlRenderer. **spec.json 0.30: 528/652 (81.0%)** — цель 80-90% достигнута |
 | Рендерер | не начато | Шаг 2 — WPF + WebView2 |
 | COM-превью | не начато | Шаг 1 — net48, IPreviewHandler |
-| GitHub | подготовлен | Репо создаётся при первом коммите |
+| GitHub | синхронизирован | Коммиты в main (частично GitHub Desktop autocommit) |
+
+## Что реализовано в ядре (шаг 3)
+
+- **AST** (`src/WizardMD.Core/Ast/Nodes.cs`): Document, Paragraph, Heading, List/ListItem (task-листы), BlockQuote, CodeBlock (fenced/indented), ThematicBreak, Table (GFM, align), inline: Text, Strong, Emphasis, Strikethrough, Code, Link, Image, AutoLink, Soft/HardBreak.
+- **BlockParser.cs**: линейный проход, PLine с offset-моделью (табы, вложенные контейнеры по commonmark reference), ATX/setext, цитаты (lazy-продолжения с флагом IsLazy), списки (вложенность, loose/tight, пустые items, правила прерывания параграфа), fenced/indented code, hr, таблицы GFM, reference definitions (multiline, первый wins, не прерывают параграф).
+- **InlineParser.cs**: delimiter-based emphasis/strong/strike (flanking по спеку, начало/конец строки = whitespace), code spans (приоритет над link-скобками), links (inline/full/shortcut, вложенные скобки, escaped, «no links in links»), images (plain-alt), autolinks (URI+email по regex спекуля), entities (полный набор HTML5, 2125 шт.), escapes, hard/soft breaks, percent-encoding URL, trim whitespace строк параграфа.
+- **HtmlRenderer.cs**: AST → HTML (переиспользуется в шаге 2 и 1).
+- **HtmlEntities.gen.cs**: полный словарь HTML5 entities (сгенерирован из Python html.entities.html5).
 
 ## Open-проблемы
 | # | Priority | Описание |
 |---|----------|----------|
-| 1 | high | Ядро-парсер: реализовать BlockParser + InlineParser + AST + HtmlRenderer (подмножество CommonMark+GFM) |
-| 2 | med | Spec-тесты: скачать `spec.json` (CommonMark), настроить прогон, целевой ориентир 80-90% |
-| 3 | med | Golden-тесты на реальных .md (README, CONTEXT, knowledge-файлы) |
-| 4 | low | Рендерер: подключить WebView2 NuGet, темы light/dark, подсветка синтаксиса |
-| 5 | low | Ассоциация .md → WizardMD.App.exe (реестр, `--register`) |
-| 6 | low | COM-хендлер: исследовать рендер без WebView2 (WebBrowser legacy vs GDI) — решение перед реализацией |
+| 1 | med | Spec-тесты: остаток 124 примера — HTML blocks (44, вне подмножества), Raw HTML (12, вне), сложные emphasis/link/nested-list кейсы. Дальнейшее повышение — по желанию |
+| 2 | med | Golden-тесты на реальные .md: тест-каркас есть (GoldenTests), прогон по README/CONTEXT/DECISIONS/HANDOFF |
+| 3 | low | Рендерер: подключить WebView2 NuGet, темы light/dark, подсветка синтаксиса (шаг 2) |
+| 4 | low | Ассоциация .md → WizardMD.App.exe (реестр, `--register`) |
+| 5 | low | COM-хендлер: исследовать рендер без WebView2 (шаг 1) |
+
+## Грабли (из сессии)
+- Табы: offset-модель обязательна (SliceByColumn + PLine.Offset), иначе вложенные списки/цитаты ломаются. contentIndent для item = markerStartCol + markerLen + padding (padding по колонкам с откатом ≥5).
+- Fenced code: содержимое со снятием min(fenceIndent, lineIndent) колонок (spec 0.30; python commonmark 0.29 не снимает — не ориентироваться).
+- setext underline после lazy-строки — НЕ setext (флаг PLine.IsLazy).
+- Reference definitions не прерывают параграф; после съедения ref строка ведёт себя как blank (_lastBlankLine=true), иначе вторая ref подряд не съедается.
+- Пустой list item (`-`) не прерывает параграф.
+- `IndentOf` — относительный (колонки пробелов в Text), `l.Offset + IndentOf` — абсолютный.
+- SpecTests зацикливался: TryShortcutLink не двигал позицию → newPos обязателен.
 
 ## Журнал работ
 | Дата | Изменение |
 |------|-----------|
-| 2026-08-05 | Создание WizardMD: окружение (SDK 8.0.423 user install + PATH, WebView2 есть), решение (Core netstandard2.0 / App WPF net8.0 / Tests xUnit), сборка зелёная. ADR-001: стек. План: 3→2→1 |
+| 2026-08-05 | Ядро-парсер реализовано: AST, BlockParser (offset-модель), InlineParser (delimiter stack), HtmlRenderer, entities. Прогон spec.json 0.30 — **81.0%** (528/652). Юнит-тесты: Block/Inline/Golden (~70 кейсов) + SpecTests. Сборка зелёная, 84 теста |
 
 ## Структура проекта
 ```
@@ -35,9 +51,17 @@ WizardMD/
 ├── WizardMD.sln
 ├── src/
 │   ├── WizardMD.Core/      # ядро-парсер, netstandard2.0
+│   │   ├── Ast/Nodes.cs
+│   │   ├── BlockParser.cs  # блоки + offset-модель
+│   │   ├── InlineParser.cs # inline + delimiters
+│   │   ├── HtmlRenderer.cs
+│   │   ├── Markdown.cs     # фасад Parse/ToHtml
+│   │   ├── MarkdownUtil.cs # normalize label, url, entities
+│   │   └── HtmlEntities.gen.cs
 │   └── WizardMD.App/       # WPF + WebView2 рендерер, net8.0-windows
 ├── tests/
-│   └── WizardMD.Core.Tests/  # xUnit
+│   ├── CommonMark/spec.json   # спецификация 0.30 (652 примера)
+│   └── WizardMD.Core.Tests/   # xUnit: SpecTests, BlockTests, InlineTests, GoldenTests
 └── docs/
     ├── CONTEXT.md
     └── DECISIONS.md
