@@ -1,1 +1,139 @@
 20:59:10.610 [17] PreviewHandler ctor
+02:48:07.093 [1] PreviewHandler ctor
+02:48:07.104 [4] Initialize path=D:\GitHub\WizardMD\HANDOFF.md
+02:48:07.108 [4] SetSite System.__ComObject
+02:48:07.126 [4] SetWindow hwnd=0x11313B4 rect=0,0,0,0
+02:48:07.126 [4] EnsureUi: создание STA-потока
+02:48:09.752 [5] UI: форма создана и показана
+02:48:09.757 [4] SetWindow done
+02:48:10.125 [4] DoPreview
+02:48:10.178 [5] ShowContent: загрузка DocumentText, html.Length=16087
+02:48:10.262 [5] ShowContent done
+02:48:10.264 [4] DoPreview done
+02:48:10.268 [6] SetRect 0,0,2017,1834
+02:48:20.172 [6] Unload
+02:48:20.187 [5] UI: message loop завершён
+02:48:20.208 [6] Unload done
+02:48:20.211 [6] SetSite null
+02:48:20.212 [6] Initialize path=D:\GitHub\WizardMD\AGENTS.md
+02:48:20.214 [6] SetSite System.__ComObject
+02:48:20.214 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:20.215 [6] EnsureUi: создание STA-потока
+02:48:20.243 [7] UI: форма создана и показана
+02:48:20.247 [6] SetWindow done
+02:48:20.249 [6] DoPreview
+02:48:20.250 [7] ShowContent: загрузка DocumentText, html.Length=10349
+02:48:20.276 [7] ShowContent done
+02:48:20.278 [6] DoPreview done
+02:48:24.420 [6] Unload
+02:48:24.429 [7] UI: message loop завершён
+02:48:24.444 [6] Unload done
+02:48:24.444 [6] SetSite null
+02:48:24.449 [6] Initialize path=D:\GitHub\WizardMD\HANDOFF.md
+02:48:24.449 [6] SetSite System.__ComObject
+02:48:24.449 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:24.451 [6] EnsureUi: создание STA-потока
+02:48:24.485 [8] UI: форма создана и показана
+02:48:24.492 [6] SetWindow done
+02:48:24.495 [6] DoPreview
+02:48:24.497 [8] ShowContent: загрузка DocumentText, html.Length=16087
+02:48:24.521 [8] ShowContent done
+02:48:24.523 [6] DoPreview done
+02:48:26.334 [6] Unload
+02:48:26.344 [8] UI: message loop завершён
+02:48:26.359 [6] Unload done
+02:48:26.359 [6] SetSite null
+02:48:26.362 [6] Initialize path=D:\GitHub\WizardMD\AGENTS.md
+02:48:26.362 [6] SetSite System.__ComObject
+02:48:26.362 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:26.364 [6] EnsureUi: создание STA-потока
+02:48:26.395 [9] UI: форма создана и показана
+02:48:26.401 [6] SetWindow done
+02:48:26.401 [6] DoPreview
+02:48:26.403 [9] ShowContent: загрузка DocumentText, html.Length=10349
+02:48:26.427 [9] ShowContent done
+02:48:26.427 [6] DoPreview done
+02:48:27.704 [6] Unload
+02:48:27.712 [9] UI: message loop завершён
+02:48:27.727 [6] Unload done
+02:48:27.729 [6] SetSite null
+02:48:27.732 [6] Initialize path=D:\GitHub\WizardMD\HANDOFF.md
+02:48:27.732 [6] SetSite System.__ComObject
+02:48:27.734 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:27.734 [6] EnsureUi: создание STA-потока
+02:48:27.771 [10] UI: форма создана и показана
+02:48:27.778 [6] SetWindow done
+02:48:27.780 [6] DoPreview
+02:48:27.782 [10] ShowContent: загрузка DocumentText, html.Length=16087
+02:48:27.810 [10] ShowContent done
+02:48:27.810 [6] DoPreview done
+02:48:28.727 [6] Unload
+02:48:28.735 [10] UI: message loop завершён
+02:48:28.749 [6] Unload done
+02:48:28.750 [6] SetSite null
+02:48:28.753 [6] Initialize path=D:\GitHub\WizardMD\AGENTS.md
+02:48:28.755 [6] SetSite System.__ComObject
+02:48:28.755 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:28.756 [6] EnsureUi: создание STA-потока
+02:48:28.792 [11] UI: форма создана и показана
+02:48:28.801 [6] SetWindow done
+02:48:28.801 [6] DoPreview
+02:48:28.805 [11] ShowContent: загрузка DocumentText, html.Length=10349
+02:48:28.830 [11] ShowContent done
+02:48:28.831 [6] DoPreview done
+02:48:33.540 [6] Unload
+02:48:33.548 [11] UI: message loop завершён
+02:48:33.560 [6] Unload done
+02:48:33.562 [6] SetSite null
+02:48:33.564 [6] Initialize path=D:\GitHub\WizardMD\README.md
+02:48:33.564 [6] SetSite System.__ComObject
+02:48:33.566 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:33.566 [6] EnsureUi: создание STA-потока
+02:48:33.597 [12] UI: форма создана и показана
+02:48:33.601 [6] SetWindow done
+02:48:33.603 [6] DoPreview
+02:48:33.618 [12] ShowContent: загрузка DocumentText, html.Length=10627
+02:48:33.640 [12] ShowContent done
+02:48:33.641 [6] DoPreview done
+02:48:35.038 [6] Unload
+02:48:35.048 [12] UI: message loop завершён
+02:48:35.061 [6] Unload done
+02:48:35.061 [6] SetSite null
+02:48:35.064 [6] Initialize path=D:\GitHub\WizardMD\HANDOFF.md
+02:48:35.064 [6] SetSite System.__ComObject
+02:48:35.066 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:35.066 [6] EnsureUi: создание STA-потока
+02:48:35.096 [13] UI: форма создана и показана
+02:48:35.101 [6] SetWindow done
+02:48:35.104 [6] DoPreview
+02:48:35.109 [13] ShowContent: загрузка DocumentText, html.Length=16087
+02:48:35.135 [13] ShowContent done
+02:48:35.136 [6] DoPreview done
+02:48:35.851 [6] Unload
+02:48:35.860 [13] UI: message loop завершён
+02:48:35.874 [6] Unload done
+02:48:35.876 [6] SetSite null
+02:48:35.879 [6] Initialize path=D:\GitHub\WizardMD\AGENTS.md
+02:48:35.880 [6] SetSite System.__ComObject
+02:48:35.882 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:35.882 [6] EnsureUi: создание STA-потока
+02:48:35.911 [12] UI: форма создана и показана
+02:48:35.916 [6] SetWindow done
+02:48:35.917 [6] DoPreview
+02:48:35.919 [12] ShowContent: загрузка DocumentText, html.Length=10349
+02:48:35.941 [12] ShowContent done
+02:48:35.943 [6] DoPreview done
+02:48:49.189 [6] Unload
+02:48:49.198 [12] UI: message loop завершён
+02:48:49.217 [6] Unload done
+02:48:49.218 [6] SetSite null
+02:48:50.347 [6] Initialize path=D:\GitHub\WizardMD\AGENTS.md
+02:48:50.348 [6] SetSite System.__ComObject
+02:48:50.350 [6] SetWindow hwnd=0x11313B4 rect=0,0,2017,1834
+02:48:50.350 [6] EnsureUi: создание STA-потока
+02:48:50.388 [11] UI: форма создана и показана
+02:48:50.392 [6] SetWindow done
+02:48:50.393 [6] DoPreview
+02:48:50.395 [11] ShowContent: загрузка DocumentText, html.Length=10349
+02:48:50.418 [11] ShowContent done
+02:48:50.418 [6] DoPreview done
