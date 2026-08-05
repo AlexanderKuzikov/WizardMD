@@ -36,3 +36,15 @@
 **Контекст:** Вопрос стиля рендерера от пользователя.
 
 **Решение:** Светлая по умолчанию, переключатель на тёмную. Подсветка синтаксиса — обязательна с первого релиза рендерера.
+
+## 2026-08-05: COM-превью — WebBrowser legacy на собственном STA-потоке, регистрация HKCU вручную
+
+**Контекст:** Шаг 1 — IPreviewHandler в Проводнике. WebView2 в процессе Explorer опасен (AGENTS), нужен лёгкий рендер. .NET Framework 4.8-сборку нельзя поставить в GAC без админа, regasm пишет в HKLM.
+
+**Решение:**
+- Рендер — WinForms `WebBrowser` (MSHTML legacy) на **собственном STA-потоке** (скрытая форма + `Application.Run`), окно прицепляется к hwnd Explorer через `SetParent`/`MoveWindow`. COM-класс — тонкая обёртка: методы пересылают работу на UI-поток через `Control.Invoke` — Explorer не блокируется рендером.
+- Регистрация — **ручная запись HKCU** (без админа, без regasm/GAC): `InprocServer32 = mscoree.dll` + `Assembly`/`Class`/`CodeBase` (file:// URI), `ThreadingModel = Both`; `.md\shellex\{IPreviewHandlerIID}`; `PreviewHandlers\{CLSID}`; ProgID\CLSID. Команды `--register-preview`/`--unregister-preview` в App. Идентификаторы (CLSID/ProgId/ClassName) — единый источник правды в Core `PreviewInfo`.
+- `ClassInterface.AutoDispatch` — IDispatch для диагностики/скриптов (PowerShell smoke-тест), vtable интерфейсов — по ComImport-декларациям.
+- ComRegisterFunction не делаем: regasm не нужен, HKCU-запись — единственный надёжный путь.
+
+**Грабли:** ключи CLSID в реестре только в фигурных скобках (`CLSID\{GUID}`); `CLSIDFromProgID` не видит per-user ProgID — активация только по CLSID.
