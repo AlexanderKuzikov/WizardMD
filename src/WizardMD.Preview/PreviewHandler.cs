@@ -25,6 +25,11 @@ namespace WizardMD.Preview
         private PreviewForm? _form;
         private string? _filePath;
 
+        public PreviewHandler()
+        {
+            DebugLog.Write("PreviewHandler ctor");
+        }
+
         public void Initialize(string pszFilePath, uint grfMode)
         {
             DebugLog.Write($"Initialize path={pszFilePath}");
