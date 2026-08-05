@@ -41,6 +41,7 @@
 ## Журнал работ
 | Дата | Изменение |
 |------|-----------|
+| 2026-08-05 | HTML-шаблон (MarkdownPage) перенесён в Core как `HtmlPage` — переиспользуется App и будущим Preview. Core.csproj + LangVersion latest |
 | 2026-08-05 | Шаг 2 (рендерер): WPF + WebView2, `MarkdownPage` (темы light/dark через CSS-переменные, zero-dep JS-подсветка 20 языков), открытие файла (CLI-аргумент, Ctrl+O, drag&drop), smoke-тест старта. 87 тестов зелёные |
 | 2026-08-05 | Ядро-парсер реализовано: AST, BlockParser (offset-модель), InlineParser (delimiter stack), HtmlRenderer, entities. Прогон spec.json 0.30 — **81.0%** (528/652). Юнит-тесты: Block/Inline/Golden (~70 кейсов) + SpecTests. Сборка зелёная, 84 теста |
 
