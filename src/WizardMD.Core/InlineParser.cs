@@ -442,6 +442,11 @@ namespace WizardMD.Core
                     break;
                 }
             }
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (result[i] is DelimiterNode leftover)
+                    result[i] = new TextNode(new string(leftover.Char, leftover.Length));
+            }
             return result;
         }
 

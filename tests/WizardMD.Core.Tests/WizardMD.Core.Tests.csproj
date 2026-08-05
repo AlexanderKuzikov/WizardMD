@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\WizardMD.Core\WizardMD.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\CommonMark\spec.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

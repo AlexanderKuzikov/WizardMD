@@ -90,9 +90,9 @@ namespace WizardMD.Core
                     _pos++;
                     continue;
                 }
+                if (TryProcessThematicBreak(container)) continue;
                 if (TryProcessBlockquote(container)) continue;
                 if (TryProcessList(container)) continue;
-                if (TryProcessThematicBreak(container)) continue;
                 if (TryProcessAtx(container)) continue;
                 if (TryProcessFence(container)) continue;
                 if (TryProcessIndentedCode(container)) continue;
@@ -250,7 +250,6 @@ namespace WizardMD.Core
                 sb.Append('\n');
                 _pos++;
             }
-            if (sb.Length > 0 && sb[sb.Length - 1] == '\n') sb.Length--;
             container.Add(new CodeBlock { IsFenced = true, Info = info, Text = sb.ToString() });
             return true;
         }
@@ -327,7 +326,6 @@ namespace WizardMD.Core
                 }
                 else break;
             }
-            if (sb.Length > 0 && sb[sb.Length - 1] == '\n') sb.Length--;
             container.Add(new CodeBlock { Text = sb.ToString() });
             return true;
         }
