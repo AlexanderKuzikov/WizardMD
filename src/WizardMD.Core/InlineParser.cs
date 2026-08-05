@@ -257,15 +257,16 @@ namespace WizardMD.Core
 
         private void EmitLinkNode(List<InlineNode> nodes, bool isImage, string url, string title, string text)
         {
+            string cleanTitle = title == null ? "" : MarkdownUtil.Unescape(title);
             if (isImage)
             {
-                var img = new ImageNode { Url = MarkdownUtil.Unescape(url), Title = title == null ? "" : title };
+                var img = new ImageNode { Url = MarkdownUtil.Unescape(url), Title = cleanTitle };
                 img.Children.AddRange(new InlineParser(PlainText(text), null).Parse());
                 nodes.Add(img);
             }
             else
             {
-                var link = new LinkNode { Url = MarkdownUtil.Unescape(url), Title = title == null ? "" : title };
+                var link = new LinkNode { Url = MarkdownUtil.Unescape(url), Title = cleanTitle };
                 link.Children.AddRange(new InlineParser(text, _references).Parse());
                 nodes.Add(link);
             }

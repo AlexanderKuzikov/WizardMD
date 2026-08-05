@@ -74,9 +74,19 @@ namespace WizardMD.Core
 
         public Document Parse()
         {
+            PreScanReferences();
             var doc = new Document();
             doc.Blocks.AddRange(ParseBlockList());
             return doc;
+        }
+
+        private void PreScanReferences()
+        {
+            for (int i = 0; i < _lines.Length; i++)
+            {
+                if (TryReferenceDefinition(_lines[i], out LinkReference r))
+                    _references[r.Label] = r;
+            }
         }
 
         public List<Node> ParseBlockList()
@@ -126,32 +136,41 @@ namespace WizardMD.Core
 
         private static string StripIndent(string line, int columns)
         {
+            var sb = new StringBuilder();
             int col = 0;
-            int i = 0;
-            while (i < line.Length && col < columns)
+            for (int i = 0; i < line.Length; i++)
             {
                 char c = line[i];
-                if (c == ' ')
-                {
-                    col++;
-                    i++;
-                }
-                else if (c == '\t')
+                if (c == '\t')
                 {
                     int adv = 4 - (col % 4);
-                    if (col + adv > columns)
+                    if (col >= columns)
                     {
-                        int needed = columns - col;
-                        col += needed;
-                        int keep = adv - needed;
-                        return new string(' ', keep) + line.Substring(i + 1);
+                        for (int k = 0; k < adv; k++) sb.Append(' ');
+                        col += adv;
                     }
-                    col += adv;
-                    i++;
+                    else if (col + adv <= columns)
+                    {
+                        col += adv;
+                    }
+                    else
+                    {
+                        int extra = columns - col;
+                        for (int k = 0; k < adv - extra; k++) sb.Append(' ');
+                        col = columns;
+                    }
                 }
-                else break;
+                else if (col >= columns)
+                {
+                    sb.Append(c);
+                    col++;
+                }
+                else
+                {
+                    col++;
+                }
             }
-            return line.Substring(i);
+            return sb.ToString();
         }
 
         // ---------- block elements ----------
@@ -219,12 +238,13 @@ namespace WizardMD.Core
             if (hashes < 1 || hashes > 6) return false;
             if (i < line.Length && line[i] != ' ' && line[i] != '\t') return false;
 
-            string rest = line.Substring(i).TrimStart(' ', '\t');
-            int end = rest.Length;
-            while (end > 0 && rest[end - 1] == '#') end--;
-            if (end < rest.Length && end > 0 && (rest[end - 1] == ' ' || rest[end - 1] == '\t'))
+            string rest = line.Substring(i);
+            int hashEnd = rest.Length - 1;
+            while (hashEnd >= 0 && rest[hashEnd] == '#') hashEnd--;
+            if (hashEnd + 1 < rest.Length)
             {
-                rest = rest.Substring(0, end - 1);
+                if (hashEnd < 0) rest = "";
+                else if (rest[hashEnd] == ' ' || rest[hashEnd] == '\t') rest = rest.Substring(0, hashEnd);
             }
             content = rest.Trim();
             level = hashes;
@@ -481,6 +501,7 @@ namespace WizardMD.Core
         private static bool TryListMarker(string line, out ListMarkerInfo info)
         {
             info = default;
+            if (IsThematicBreak(line)) return false;
             int col = 0, i = 0;
             while (i < line.Length && col < 4 && (line[i] == ' ' || line[i] == '\t'))
             {
@@ -617,6 +638,7 @@ namespace WizardMD.Core
                 string l = _lines[_pos];
                 if (IsBlank(l)) break;
                 if (StartsNewBlock(l)) break;
+                if (lines.Count > 0 && IsSetextUnderline(l, out _)) break;
                 lines.Add(l);
                 _pos++;
             }

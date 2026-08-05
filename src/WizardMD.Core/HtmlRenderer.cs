@@ -76,7 +76,8 @@ namespace WizardMD.Core
             if (item.IsTask)
             {
                 sb.Append(" class=\"task-list-item\"");
-                sb.Append("><input type=\"checkbox\" disabled=\"\"");
+                sb.Append('>');
+                sb.Append("<input type=\"checkbox\" disabled=\"\"");
                 if (item.TaskChecked) sb.Append(" checked=\"\"");
                 sb.Append("> ");
             }
@@ -84,24 +85,20 @@ namespace WizardMD.Core
             {
                 sb.Append('>');
             }
+
+            if (item.Blocks.Count == 1 && item.Blocks[0] is ParagraphBlock single)
+            {
+                RenderInlines(single.Inlines, sb);
+                sb.Append("</li>\n");
+                return;
+            }
+
+            if (item.Blocks.Count > 0) sb.Append('\n');
             foreach (var inner in item.Blocks)
             {
-                if (inner is ParagraphBlock para)
-                {
-                    RenderInlines(para.Inlines, sb);
-                    AppendIfNeeded(sb, '\n');
-                }
-                else
-                {
-                    RenderBlock(inner, sb);
-                }
+                RenderBlock(inner, sb);
             }
             sb.Append("</li>\n");
-        }
-
-        private static void AppendIfNeeded(StringBuilder sb, char c)
-        {
-            if (sb.Length > 0 && sb[sb.Length - 1] != c) sb.Append(c);
         }
 
         private static void RenderTable(TableBlock table, StringBuilder sb)
