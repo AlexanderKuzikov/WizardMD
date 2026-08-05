@@ -53,7 +53,7 @@ public static class PreviewRegistration
         using (var appId = Registry.CurrentUser.CreateSubKey(AppIdRoot))
         {
             appId.SetValue("", PreviewInfo.DisplayName);
-            appId.SetValue("DllSurrogate", @"%SystemRoot%\system32\prevhost.exe");
+            appId.SetValue("DllSurrogate", @"%SystemRoot%\system32\prevhost.exe", RegistryValueKind.ExpandString);
         }
 
         using (var progId = Registry.CurrentUser.CreateSubKey(ProgIdRoot))
