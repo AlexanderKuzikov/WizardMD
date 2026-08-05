@@ -60,53 +60,7 @@ namespace WizardMD.Core
             return sb.ToString();
         }
 
-        private static readonly Dictionary<string, string> Entities = BuildEntities();
-
-        private static Dictionary<string, string> BuildEntities()
-        {
-            var d = new Dictionary<string, string>
-            {
-                { "amp", "\u0026" },
-                { "lt", "<" },
-                { "gt", ">" },
-                { "quot", "\"" },
-                { "apos", "'" },
-                { "nbsp", "\u00a0" },
-                { "copy", "\u00a9" },
-                { "reg", "\u00ae" },
-                { "trade", "\u2122" },
-                { "hellip", "\u2026" },
-                { "mdash", "\u2014" },
-                { "ndash", "\u2013" },
-                { "ldquo", "\u201c" },
-                { "rdquo", "\u201d" },
-                { "lsquo", "\u2018" },
-                { "rsquo", "\u2019" },
-                { "laquo", "\u00ab" },
-                { "raquo", "\u00bb" },
-                { "times", "\u00d7" },
-                { "divide", "\u00f7" },
-                { "plusmn", "\u00b1" },
-                { "middot", "\u00b7" },
-                { "bull", "\u2022" },
-                { "sect", "\u00a7" },
-                { "para", "\u00b6" },
-                { "deg", "\u00b0" },
-                { "micro", "\u00b5" },
-                { "euro", "\u20ac" },
-                { "pound", "\u00a3" },
-                { "yen", "\u00a5" },
-                { "cent", "\u00a2" },
-                { "alpha", "\u03b1" },
-                { "beta", "\u03b2" },
-                { "gamma", "\u03b3" },
-                { "delta", "\u03b4" },
-                { "pi", "\u03c0" },
-                { "sum", "\u2211" },
-                { "infin", "\u221e" },
-            };
-            return d;
-        }
+        private static readonly Dictionary<string, string> Entities = HtmlEntities.Map;
 
         public static bool TryEntity(string s, int ampIndex, out string value, out int end)
         {
@@ -141,6 +95,63 @@ namespace WizardMD.Core
                 return true;
             }
             return false;
+        }
+
+        public static string DecodeEntities(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s.IndexOf('&') < 0) return s;
+            var sb = new StringBuilder();
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '&' && TryEntity(s, i, out string v, out int end))
+                {
+                    sb.Append(v);
+                    i = end - 1;
+                }
+                else
+                {
+                    sb.Append(s[i]);
+                }
+            }
+            return sb.ToString();
+        }
+
+        public static string NormalizeUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return "";
+            string s = DecodeEntities(url);
+            var sb = new StringBuilder(s.Length + 8);
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '.' || c == '_' || c == '~'
+                    || c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')'
+                    || c == '*' || c == '+' || c == ',' || c == ';' || c == '=' || c == ':'
+                    || c == '@' || c == '/' || c == '?' || c == '#')
+                {
+                    sb.Append(c);
+                }
+                else if (c == '%' && i + 2 < s.Length
+                         && IsHex(s[i + 1]) && IsHex(s[i + 2]))
+                {
+                    sb.Append(c).Append(s[i + 1]).Append(s[i + 2]);
+                    i += 2;
+                }
+                else
+                {
+                    foreach (byte b in System.Text.Encoding.UTF8.GetBytes(c.ToString()))
+                    {
+                        sb.Append('%').Append(b.ToString("X2"));
+                    }
+                }
+            }
+            return sb.ToString();
+        }
+
+        private static bool IsHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
         }
     }
 }

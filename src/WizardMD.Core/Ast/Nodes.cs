@@ -15,6 +15,7 @@ namespace WizardMD.Core.Ast
 
     public sealed class ParagraphBlock : Node
     {
+        public List<string> RawLines { get; } = new List<string>();
         public List<InlineNode> Inlines { get; } = new List<InlineNode>();
     }
 
@@ -34,6 +35,7 @@ namespace WizardMD.Core.Ast
         public bool IsOrdered { get; set; }
         public char Bullet { get; set; } = '-';
         public int Start { get; set; } = 1;
+        public bool IsLoose { get; set; }
         public List<ListItemBlock> Items { get; } = new List<ListItemBlock>();
     }
 

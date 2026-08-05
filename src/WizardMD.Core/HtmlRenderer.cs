@@ -39,7 +39,7 @@ namespace WizardMD.Core
                 {
                     sb.Append("<ul>\n");
                 }
-                foreach (var item in list.Items) RenderListItem(item, sb);
+                foreach (var item in list.Items) RenderListItem(item, list.IsLoose, sb);
                 sb.Append(list.IsOrdered ? "</ol>\n" : "</ul>\n");
             }
             else if (node is BlockQuoteBlock q)
@@ -70,7 +70,7 @@ namespace WizardMD.Core
             }
         }
 
-        private static void RenderListItem(ListItemBlock item, StringBuilder sb)
+        private static void RenderListItem(ListItemBlock item, bool isLoose, StringBuilder sb)
         {
             sb.Append("<li");
             if (item.IsTask)
@@ -86,17 +86,47 @@ namespace WizardMD.Core
                 sb.Append('>');
             }
 
-            if (item.Blocks.Count == 1 && item.Blocks[0] is ParagraphBlock single)
+            if (!isLoose && item.Blocks.Count == 1 && item.Blocks[0] is ParagraphBlock single)
             {
                 RenderInlines(single.Inlines, sb);
                 sb.Append("</li>\n");
                 return;
             }
 
-            if (item.Blocks.Count > 0) sb.Append('\n');
-            foreach (var inner in item.Blocks)
+            if (isLoose)
             {
-                RenderBlock(inner, sb);
+                if (item.Blocks.Count > 0) sb.Append('\n');
+                foreach (var inner in item.Blocks)
+                {
+                    RenderBlock(inner, sb);
+                }
+            }
+            else
+            {
+                if (item.Blocks.Count > 0)
+                {
+                    if (item.Blocks[0] is ParagraphBlock firstPara)
+                    {
+                        RenderInlines(firstPara.Inlines, sb);
+                    }
+                    else
+                    {
+                        sb.Append('\n');
+                        RenderBlock(item.Blocks[0], sb);
+                    }
+                    for (int i = 1; i < item.Blocks.Count; i++)
+                    {
+                        sb.Append('\n');
+                        if (item.Blocks[i] is ParagraphBlock p)
+                        {
+                            RenderInlines(p.Inlines, sb);
+                        }
+                        else
+                        {
+                            RenderBlock(item.Blocks[i], sb);
+                        }
+                    }
+                }
             }
             sb.Append("</li>\n");
         }

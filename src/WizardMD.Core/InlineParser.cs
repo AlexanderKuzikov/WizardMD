@@ -15,11 +15,18 @@ namespace WizardMD.Core
     {
         private readonly string _text;
         private readonly Dictionary<string, LinkReference> _references;
+        private readonly bool _trimLineWhitespace;
 
         public InlineParser(string text, Dictionary<string, LinkReference> references)
+            : this(text, references, false)
+        {
+        }
+
+        public InlineParser(string text, Dictionary<string, LinkReference> references, bool trimLineWhitespace)
         {
             _text = text ?? "";
             _references = references ?? new Dictionary<string, LinkReference>();
+            _trimLineWhitespace = trimLineWhitespace;
         }
 
         public List<InlineNode> Parse()
@@ -27,9 +34,16 @@ namespace WizardMD.Core
             var nodes = new List<InlineNode>();
             var sb = new System.Text.StringBuilder();
             int i = 0;
+            bool skipLeading = _trimLineWhitespace;
             while (i < _text.Length)
             {
                 char c = _text[i];
+                if (skipLeading && (c == ' ' || c == '\t'))
+                {
+                    i++;
+                    continue;
+                }
+                skipLeading = false;
                 if (c == '\\')
                 {
                     if (i + 1 < _text.Length && _text[i + 1] == '\n')
@@ -66,9 +80,11 @@ namespace WizardMD.Core
                     }
                     else
                     {
+                        if (sp == 1) sb.Length--;
                         Flush(sb, nodes);
                         nodes.Add(new SoftBreakNode());
                     }
+                    skipLeading = _trimLineWhitespace;
                     i++;
                 }
                 else if (c == '!' && i + 1 < _text.Length && _text[i + 1] == '[')
@@ -138,13 +154,13 @@ namespace WizardMD.Core
 
         private DelimiterNode MakeDelimiter(char ch, int len, int runStart, int runEnd)
         {
-            char before = runStart > 0 ? _text[runStart - 1] : '\0';
-            char after = runEnd < _text.Length ? _text[runEnd] : '\0';
+            char before = runStart > 0 ? _text[runStart - 1] : '\n';
+            char after = runEnd < _text.Length ? _text[runEnd] : '\n';
 
             bool beforeWs = MarkdownUtil.IsWhitespace(before);
-            bool beforePunct = char.IsLetterOrDigit(before) ? false : !beforeWs && !IsSymbol(before) ? false : IsPunct(before);
+            bool beforePunct = MarkdownUtil.IsAsciiPunctuation(before);
             bool afterWs = MarkdownUtil.IsWhitespace(after);
-            bool afterPunct = char.IsLetterOrDigit(after) ? false : !afterWs && !IsSymbol(after) ? false : IsPunct(after);
+            bool afterPunct = MarkdownUtil.IsAsciiPunctuation(after);
 
             bool leftFlanking = !afterWs && (!afterPunct || beforeWs || beforePunct);
             bool rightFlanking = !beforeWs && (!beforePunct || afterWs || afterPunct);
@@ -158,16 +174,6 @@ namespace WizardMD.Core
                 }
             }
             return new DelimiterNode { Char = ch, Length = len, CanOpen = leftFlanking, CanClose = rightFlanking };
-        }
-
-        private static bool IsPunct(char c)
-        {
-            return MarkdownUtil.IsAsciiPunctuation(c);
-        }
-
-        private static bool IsSymbol(char c)
-        {
-            return false;
         }
 
         private void EmitCodeSpan(int start, List<InlineNode> nodes, out int newPos)
@@ -204,7 +210,7 @@ namespace WizardMD.Core
 
         private void EmitLinkOrImage(int bracketPos, bool isImage, List<InlineNode> nodes, out int newPos)
         {
-            int close = _text.IndexOf(']', bracketPos + 1);
+            int close = FindClosingBracket(bracketPos);
             if (close < 0)
             {
                 nodes.Add(new TextNode(isImage ? "![" : "["));
@@ -221,6 +227,11 @@ namespace WizardMD.Core
                 {
                     newPos = destEnd + 1;
                     EmitLinkNode(nodes, isImage, url, title, text);
+                    return;
+                }
+                if (TryShortcutLink(text, isImage, nodes, out int sp))
+                {
+                    newPos = sp;
                     return;
                 }
             }
@@ -255,18 +266,49 @@ namespace WizardMD.Core
             newPos = bracketPos + (isImage ? 2 : 1);
         }
 
+        private bool TryShortcutLink(string text, bool isImage, List<InlineNode> nodes, out int newPos)
+        {
+            newPos = 0;
+            string norm = MarkdownUtil.NormalizeLabel(text);
+            if (!_references.TryGetValue(norm, out LinkReference rf)) return false;
+            EmitLinkNode(nodes, isImage, rf.Url, rf.Title, text);
+            return true;
+        }
+
+        private int FindClosingBracket(int open)
+        {
+            int depth = 0;
+            for (int j = open; j < _text.Length; j++)
+            {
+                char c = _text[j];
+                if (c == '\\' && j + 1 < _text.Length)
+                {
+                    j++;
+                    continue;
+                }
+                if (c == '[') depth++;
+                else if (c == ']')
+                {
+                    depth--;
+                    if (depth == 0) return j;
+                }
+            }
+            return -1;
+        }
+
         private void EmitLinkNode(List<InlineNode> nodes, bool isImage, string url, string title, string text)
         {
-            string cleanTitle = title == null ? "" : MarkdownUtil.Unescape(title);
+            string cleanUrl = MarkdownUtil.NormalizeUrl(MarkdownUtil.Unescape(url));
+            string cleanTitle = title == null ? "" : MarkdownUtil.DecodeEntities(MarkdownUtil.Unescape(title));
             if (isImage)
             {
-                var img = new ImageNode { Url = MarkdownUtil.Unescape(url), Title = cleanTitle };
+                var img = new ImageNode { Url = cleanUrl, Title = cleanTitle };
                 img.Children.AddRange(new InlineParser(PlainText(text), null).Parse());
                 nodes.Add(img);
             }
             else
             {
-                var link = new LinkNode { Url = MarkdownUtil.Unescape(url), Title = cleanTitle };
+                var link = new LinkNode { Url = cleanUrl, Title = cleanTitle };
                 link.Children.AddRange(new InlineParser(text, _references).Parse());
                 nodes.Add(link);
             }
@@ -290,7 +332,13 @@ namespace WizardMD.Core
             }
             if (_text[i] == '<')
             {
-                int close = _text.IndexOf('>', i + 1);
+                int close = -1;
+                for (int j = i + 1; j < _text.Length; j++)
+                {
+                    if (_text[j] == '\n') { end = j; return false; }
+                    if (_text[j] == '\\' && j + 1 < _text.Length) { j++; continue; }
+                    if (_text[j] == '>') { close = j; break; }
+                }
                 if (close < 0)
                 {
                     end = i;
@@ -306,14 +354,30 @@ namespace WizardMD.Core
                 while (i < _text.Length)
                 {
                     char _c = _text[i];
-                    if (_c == '(') depth++;
+                    if (_c == '\\' && i + 1 < _text.Length)
+                    {
+                        i += 2;
+                        continue;
+                    }
+                    if (_c == '(')
+                    {
+                        depth++;
+                        i++;
+                    }
                     else if (_c == ')')
                     {
                         if (depth == 0) break;
                         depth--;
+                        i++;
                     }
-                    else if (_c == ' ' || _c == '\n') break;
-                    i++;
+                    else if (_c == ' ' || _c == '\t' || _c == '\n')
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        i++;
+                    }
                 }
                 url = _text.Substring(startUrl, i - startUrl);
             }
@@ -328,7 +392,12 @@ namespace WizardMD.Core
                     return false;
                 }
                 char closeQ = q == '(' ? ')' : q;
-                int close = _text.IndexOf(closeQ, i + 1);
+                int close = -1;
+                for (int j = i + 1; j < _text.Length; j++)
+                {
+                    if (_text[j] == '\\' && j + 1 < _text.Length) { j++; continue; }
+                    if (_text[j] == closeQ) { close = j; break; }
+                }
                 if (close < 0)
                 {
                     end = i;
@@ -355,7 +424,8 @@ namespace WizardMD.Core
             int colon = inner.IndexOf(':');
             if (colon > 0 && IsValidScheme(inner.Substring(0, colon)))
             {
-                nodes.Add(new AutoLinkNode { Url = inner, Label = inner });
+                string clean = MarkdownUtil.NormalizeUrl(inner);
+                nodes.Add(new AutoLinkNode { Url = clean, Label = inner });
                 newPos = close + 1;
                 return;
             }

@@ -27,9 +27,9 @@ namespace WizardMD.Core
         public char Delimiter;
         public int Start;
         public int ContentIndent;
-        public string Content;
+        public PLine Content;
 
-        public ListMarkerInfo(bool ordered, char bullet, char delimiter, int start, int contentIndent, string content)
+        public ListMarkerInfo(bool ordered, char bullet, char delimiter, int start, int contentIndent, PLine content)
         {
             IsOrdered = ordered;
             BulletChar = bullet;
@@ -47,19 +47,35 @@ namespace WizardMD.Core
         }
     }
 
+    internal struct PLine
+    {
+        public string Text;
+        public int Offset;
+
+        public PLine(string text, int offset)
+        {
+            Text = text;
+            Offset = offset;
+        }
+    }
+
     internal sealed class BlockParser
     {
-        private readonly string[] _lines;
+        private readonly PLine[] _lines;
         private int _pos;
+        private bool _lastBlankLine;
+        private bool _curWasBlank;
         private readonly Dictionary<string, LinkReference> _references;
 
         public BlockParser(string text)
         {
-            _lines = Normalize(text);
+            var raw = Normalize(text);
+            _lines = new PLine[raw.Length];
+            for (int i = 0; i < raw.Length; i++) _lines[i] = new PLine(raw[i], 0);
             _references = new Dictionary<string, LinkReference>();
         }
 
-        private BlockParser(string[] lines, Dictionary<string, LinkReference> references)
+        private BlockParser(PLine[] lines, Dictionary<string, LinkReference> references)
         {
             _lines = lines;
             _references = references;
@@ -84,7 +100,7 @@ namespace WizardMD.Core
         {
             for (int i = 0; i < _lines.Length; i++)
             {
-                if (TryReferenceDefinition(_lines[i], out LinkReference r))
+                if (TryReferenceDefinition(_lines[i].Text, out LinkReference r) && !_references.ContainsKey(r.Label))
                     _references[r.Label] = r;
             }
         }
@@ -94,12 +110,15 @@ namespace WizardMD.Core
             var container = new List<Node>();
             while (_pos < _lines.Length)
             {
-                string line = _lines[_pos];
+                PLine line = _lines[_pos];
                 if (IsBlank(line))
                 {
+                    _lastBlankLine = true;
                     _pos++;
                     continue;
                 }
+                _curWasBlank = _lastBlankLine;
+                _lastBlankLine = false;
                 if (TryProcessThematicBreak(container)) continue;
                 if (TryProcessBlockquote(container)) continue;
                 if (TryProcessList(container)) continue;
@@ -115,52 +134,61 @@ namespace WizardMD.Core
 
         // ---------- helpers ----------
 
-        private static bool IsBlank(string line)
+        private static bool IsBlank(PLine line)
         {
-            for (int i = 0; i < line.Length; i++)
-                if (line[i] != ' ' && line[i] != '\t') return false;
+            for (int i = 0; i < line.Text.Length; i++)
+                if (line.Text[i] != ' ' && line.Text[i] != '\t') return false;
             return true;
         }
 
-        private static int IndentOf(string line)
+        private static bool IsBlankText(string s)
+        {
+            for (int i = 0; i < s.Length; i++)
+                if (s[i] != ' ' && s[i] != '\t') return false;
+            return true;
+        }
+
+        private static int IndentOf(PLine line)
         {
             int col = 0;
-            for (int i = 0; i < line.Length; i++)
+            string s = line.Text;
+            for (int i = 0; i < s.Length; i++)
             {
-                if (line[i] == ' ') col++;
-                else if (line[i] == '\t') col += 4 - (col % 4);
+                if (s[i] == ' ') col++;
+                else if (s[i] == '\t') col += 4 - ((line.Offset + col) % 4);
                 else break;
             }
             return col;
         }
 
-        private static string StripIndent(string line, int columns)
+        private static PLine SliceByColumn(PLine line, int column)
         {
             var sb = new StringBuilder();
-            int col = 0;
-            for (int i = 0; i < line.Length; i++)
+            int col = line.Offset;
+            string s = line.Text;
+            for (int i = 0; i < s.Length; i++)
             {
-                char c = line[i];
+                char c = s[i];
                 if (c == '\t')
                 {
                     int adv = 4 - (col % 4);
-                    if (col >= columns)
+                    if (col >= column)
                     {
-                        for (int k = 0; k < adv; k++) sb.Append(' ');
+                        sb.Append(c);
                         col += adv;
                     }
-                    else if (col + adv <= columns)
+                    else if (col + adv <= column)
                     {
                         col += adv;
                     }
                     else
                     {
-                        int extra = columns - col;
+                        int extra = column - col;
                         for (int k = 0; k < adv - extra; k++) sb.Append(' ');
-                        col = columns;
+                        col = column;
                     }
                 }
-                else if (col >= columns)
+                else if (col >= column)
                 {
                     sb.Append(c);
                     col++;
@@ -170,14 +198,14 @@ namespace WizardMD.Core
                     col++;
                 }
             }
-            return sb.ToString();
+            return new PLine(sb.ToString(), column);
         }
 
         // ---------- block elements ----------
 
         private bool TryProcessThematicBreak(List<Node> container)
         {
-            if (!IsThematicBreak(_lines[_pos])) return false;
+            if (!IsThematicBreak(_lines[_pos].Text)) return false;
             _pos++;
             container.Add(new ThematicBreakBlock());
             return true;
@@ -212,10 +240,10 @@ namespace WizardMD.Core
 
         private bool TryProcessAtx(List<Node> container)
         {
-            if (!TryAtx(_lines[_pos], out int level, out string content)) return false;
+            if (!TryAtx(_lines[_pos].Text, out int level, out string content)) return false;
             _pos++;
             var h = new HeadingBlock(level);
-            h.Inlines.AddRange(new InlineParser(content, _references).Parse());
+            h.Inlines.AddRange(new InlineParser(content, _references, true).Parse());
             container.Add(h);
             return true;
         }
@@ -253,20 +281,20 @@ namespace WizardMD.Core
 
         private bool TryProcessFence(List<Node> container)
         {
-            if (!TryFence(_lines[_pos], out string fence, out string info)) return false;
+            if (!TryFence(_lines[_pos].Text, out string fence, out string info)) return false;
             char fenceChar = fence[0];
             int fenceLen = fence.Length;
             _pos++;
             var sb = new StringBuilder();
             while (_pos < _lines.Length)
             {
-                string l = _lines[_pos];
-                if (IsClosingFence(l, fenceChar, fenceLen))
+                PLine l = _lines[_pos];
+                if (IsClosingFence(l.Text, fenceChar, fenceLen))
                 {
                     _pos++;
                     break;
                 }
-                sb.Append(l);
+                sb.Append(l.Text);
                 sb.Append('\n');
                 _pos++;
             }
@@ -319,14 +347,22 @@ namespace WizardMD.Core
         private bool TryProcessIndentedCode(List<Node> container)
         {
             if (IndentOf(_lines[_pos]) < 4) return false;
+            if (!_curWasBlank && container.Count > 0 && container[container.Count - 1] is ParagraphBlock prevPara)
+            {
+                prevPara.RawLines.Add(_lines[_pos].Text);
+                prevPara.Inlines.Clear();
+                prevPara.Inlines.AddRange(new InlineParser(string.Join("\n", prevPara.RawLines), _references, true).Parse());
+                _pos++;
+                return true;
+            }
             var sb = new StringBuilder();
             while (_pos < _lines.Length)
             {
-                string l = _lines[_pos];
+                PLine l = _lines[_pos];
                 int ind = IndentOf(l);
                 if (ind >= 4)
                 {
-                    sb.Append(StripIndent(l, 4));
+                    sb.Append(SliceByColumn(l, l.Offset + 4).Text);
                     sb.Append('\n');
                     _pos++;
                 }
@@ -354,12 +390,12 @@ namespace WizardMD.Core
         {
             if (!TryBlockquote(_lines[_pos], out _)) return false;
             var q = new BlockQuoteBlock();
-            var collected = new List<string>();
+            var collected = new List<PLine>();
             bool canLazy = false;
             while (_pos < _lines.Length)
             {
-                string l = _lines[_pos];
-                if (TryBlockquote(l, out string content))
+                PLine l = _lines[_pos];
+                if (TryBlockquote(l, out PLine content))
                 {
                     collected.Add(content);
                     canLazy = !StartsNewBlock(content);
@@ -371,7 +407,7 @@ namespace WizardMD.Core
                     while (_pos < _lines.Length && IsBlank(_lines[_pos])) _pos++;
                     if (_pos < _lines.Length && TryBlockquote(_lines[_pos], out _))
                     {
-                        collected.Add("");
+                        collected.Add(new PLine("", 0));
                         canLazy = false;
                     }
                     else
@@ -393,20 +429,22 @@ namespace WizardMD.Core
             return true;
         }
 
-        private static bool TryBlockquote(string line, out string content)
+        private static bool TryBlockquote(PLine line, out PLine content)
         {
-            content = null;
-            int col = 0, i = 0;
-            while (i < line.Length && col < 4 && (line[i] == ' ' || line[i] == '\t'))
+            content = default;
+            int col = line.Offset, i = 0;
+            string s = line.Text;
+            while (i < s.Length && col < line.Offset + 4 && (s[i] == ' ' || s[i] == '\t'))
             {
-                if (line[i] == ' ') col++;
+                if (s[i] == ' ') col++;
                 else col += 4 - (col % 4);
                 i++;
             }
-            if (col > 3 || i >= line.Length || line[i] != '>') return false;
+            if (col > line.Offset + 3 || i >= s.Length || s[i] != '>') return false;
             i++;
-            if (i < line.Length && (line[i] == ' ' || line[i] == '\t')) i++;
-            content = line.Substring(i);
+            col++;
+            if (i < s.Length && (s[i] == ' ' || s[i] == '\t')) { i++; col++; }
+            content = SliceByColumn(line, col);
             return true;
         }
 
@@ -421,38 +459,57 @@ namespace WizardMD.Core
             };
             while (_pos < _lines.Length)
             {
-                if (!TryListMarker(_lines[_pos], out ListMarkerInfo mi)) break;
-                if (!mi.CompatibleWith(first)) break;
-                list.Items.Add(CollectListItem(mi));
-            }
-            container.Add(list);
-            return true;
-        }
-
-        private ListItemBlock CollectListItem(ListMarkerInfo mi)
-        {
-            var lines = new List<string>();
-            lines.Add(mi.Content);
-            _pos++;
-            while (_pos < _lines.Length)
-            {
-                string l = _lines[_pos];
-                if (IsBlank(l))
+                if (IsBlank(_lines[_pos]))
                 {
                     int save = _pos;
                     while (_pos < _lines.Length && IsBlank(_lines[_pos])) _pos++;
-                    if (_pos < _lines.Length && IndentOf(_lines[_pos]) >= mi.ContentIndent)
+                    if (_pos < _lines.Length && TryListMarker(_lines[_pos], out ListMarkerInfo nm) && nm.CompatibleWith(first))
                     {
-                        lines.Add("");
+                        list.IsLoose = true;
+                        list.Items.Add(CollectListItem(nm, list));
                         continue;
                     }
                     _pos = save;
                     break;
                 }
-                int ind = IndentOf(l);
+                if (!TryListMarker(_lines[_pos], out ListMarkerInfo mi)) break;
+                if (!mi.CompatibleWith(first)) break;
+                list.Items.Add(CollectListItem(mi, list));
+            }
+            container.Add(list);
+            return true;
+        }
+
+        private ListItemBlock CollectListItem(ListMarkerInfo mi, ListBlock list)
+        {
+            var lines = new List<PLine>();
+            lines.Add(mi.Content);
+            _pos++;
+            while (_pos < _lines.Length)
+            {
+                PLine l = _lines[_pos];
+                if (IsBlank(l))
+                {
+                    int save = _pos;
+                    while (_pos < _lines.Length && IsBlank(_lines[_pos])) _pos++;
+                    if (_pos < _lines.Length && _lines[_pos].Offset + IndentOf(_lines[_pos]) >= mi.ContentIndent)
+                    {
+                        list.IsLoose = true;
+                        lines.Add(new PLine("", l.Offset));
+                        continue;
+                    }
+                    _pos = save;
+                    break;
+                }
+                int ind = l.Offset + IndentOf(l);
                 if (ind >= mi.ContentIndent)
                 {
-                    lines.Add(StripIndent(l, mi.ContentIndent));
+                    lines.Add(SliceByColumn(l, mi.ContentIndent));
+                    _pos++;
+                }
+                else if (ItemIsEmpty(lines) && IsLazyContinuation(l))
+                {
+                    lines.Add(l);
                     _pos++;
                 }
                 else if (LastLineIsParagraph(lines) && IsLazyContinuation(l))
@@ -464,11 +521,11 @@ namespace WizardMD.Core
             }
 
             var item = new ListItemBlock();
-            if (lines.Count > 0 && TryTask(lines[0], out bool checkedTask, out string rest))
+            if (lines.Count > 0 && TryTask(lines[0].Text, out bool checkedTask, out string rest))
             {
                 item.IsTask = true;
                 item.TaskChecked = checkedTask;
-                lines[0] = rest;
+                lines[0] = new PLine(rest, lines[0].Offset + 3);
             }
             var sub = new BlockParser(lines.ToArray(), _references);
             item.Blocks.AddRange(sub.ParseBlockList());
@@ -490,26 +547,34 @@ namespace WizardMD.Core
             return true;
         }
 
-        private static bool LastLineIsParagraph(List<string> lines)
+        private static bool LastLineIsParagraph(List<PLine> lines)
         {
             if (lines.Count == 0) return false;
-            string last = lines[lines.Count - 1];
+            PLine last = lines[lines.Count - 1];
             if (IsBlank(last)) return false;
             return !StartsNewBlock(last);
         }
 
-        private static bool TryListMarker(string line, out ListMarkerInfo info)
+        private static bool ItemIsEmpty(List<PLine> lines)
+        {
+            for (int i = 0; i < lines.Count; i++)
+                if (!IsBlank(lines[i])) return false;
+            return true;
+        }
+
+        private static bool TryListMarker(PLine line, out ListMarkerInfo info)
         {
             info = default;
-            if (IsThematicBreak(line)) return false;
-            int col = 0, i = 0;
-            while (i < line.Length && col < 4 && (line[i] == ' ' || line[i] == '\t'))
+            if (IsThematicBreak(line.Text)) return false;
+            int col = line.Offset, i = 0;
+            string s = line.Text;
+            while (i < s.Length && col < line.Offset + 4 && (s[i] == ' ' || s[i] == '\t'))
             {
-                if (line[i] == ' ') col++;
+                if (s[i] == ' ') col++;
                 else col += 4 - (col % 4);
                 i++;
             }
-            if (col > 3) return false;
+            if (col > line.Offset + 3) return false;
             int markerStartCol = col;
             int markerLen = 0;
             bool ordered = false;
@@ -517,26 +582,26 @@ namespace WizardMD.Core
             char delimiter = '.';
             int start = 1;
 
-            if (i < line.Length && (line[i] == '-' || line[i] == '+' || line[i] == '*'))
+            if (i < s.Length && (s[i] == '-' || s[i] == '+' || s[i] == '*'))
             {
-                bullet = line[i];
+                bullet = s[i];
                 markerLen = 1;
                 i++;
                 col++;
             }
-            else if (i < line.Length && char.IsDigit(line[i]))
+            else if (i < s.Length && char.IsDigit(s[i]))
             {
                 int numStart = i;
-                while (i < line.Length && char.IsDigit(line[i]) && i - numStart < 10)
+                while (i < s.Length && char.IsDigit(s[i]) && i - numStart < 10)
                 {
                     i++;
                     col++;
                 }
                 if (i - numStart > 9) return false;
-                if (i < line.Length && (line[i] == '.' || line[i] == ')'))
+                if (i < s.Length && (s[i] == '.' || s[i] == ')'))
                 {
-                    delimiter = line[i];
-                    start = int.Parse(line.Substring(numStart, i - numStart));
+                    delimiter = s[i];
+                    start = int.Parse(s.Substring(numStart, i - numStart));
                     ordered = true;
                     markerLen = i - numStart + 1;
                     i++;
@@ -546,26 +611,49 @@ namespace WizardMD.Core
             }
             else return false;
 
-            if (i >= line.Length) return false;
-            int padding = 0;
-            while (i < line.Length && padding < 5 && (line[i] == ' ' || line[i] == '\t'))
+            bool bareItem = i >= s.Length;
+            if (!bareItem && s[i] != ' ' && s[i] != '\t') return false;
+            int markerEndCol = col;
+            int spacesAfter = 0;
+            int endIdx = i;
+            while (endIdx < s.Length && spacesAfter < 5)
             {
-                int adv = line[i] == ' ' ? 1 : 4 - (col % 4);
-                padding += adv;
-                col += adv;
-                i++;
-                if (padding >= 5) break;
+                char sc = s[endIdx];
+                if (sc == ' ')
+                {
+                    markerEndCol++;
+                    endIdx++;
+                    spacesAfter++;
+                }
+                else if (sc == '\t')
+                {
+                    int adv = 4 - (markerEndCol % 4);
+                    markerEndCol += adv;
+                    endIdx++;
+                    spacesAfter += adv;
+                }
+                else break;
             }
-            if (padding == 0) return false;
-            int contentIndent = markerStartCol + markerLen + Math.Min(padding, 4);
-            info = new ListMarkerInfo(ordered, bullet, delimiter, start, contentIndent, line.Substring(i));
+            bool blankItem = endIdx >= s.Length;
+            if (spacesAfter >= 5 || spacesAfter < 1 || blankItem)
+            {
+                int contentIndent = markerStartCol + markerLen + 1;
+                info = new ListMarkerInfo(ordered, bullet, delimiter, start, contentIndent,
+                    SliceByColumn(line, contentIndent));
+            }
+            else
+            {
+                int contentIndent = markerStartCol + markerLen + spacesAfter;
+                info = new ListMarkerInfo(ordered, bullet, delimiter, start, contentIndent,
+                    SliceByColumn(line, contentIndent));
+            }
             return true;
         }
 
         private bool TryProcessReference(List<Node> container)
         {
-            if (!TryReferenceDefinition(_lines[_pos], out LinkReference reference)) return false;
-            _references[reference.Label] = reference;
+            if (!TryReferenceDefinition(_lines[_pos].Text, out LinkReference reference)) return false;
+            if (!_references.ContainsKey(reference.Label)) _references[reference.Label] = reference;
             _pos++;
             return true;
         }
@@ -573,7 +661,7 @@ namespace WizardMD.Core
         private static bool TryReferenceDefinition(string line, out LinkReference reference)
         {
             reference = null;
-            string t = line.Substring(Math.Min(IndentOf(line), 3));
+            string t = line.Substring(Math.Min(IndentOfText(line), 3));
             if (t.Length < 2 || t[0] != '[') return false;
             int close = t.IndexOf(']');
             if (close <= 0) return false;
@@ -628,43 +716,67 @@ namespace WizardMD.Core
             return true;
         }
 
+        private static int IndentOfText(string s)
+        {
+            int col = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == ' ') col++;
+                else if (s[i] == '\t') col += 4 - (col % 4);
+                else break;
+            }
+            return col;
+        }
+
         // ---------- paragraph / setext / table ----------
 
         private bool TryProcessParagraph(List<Node> container)
         {
-            var lines = new List<string>();
+            var lines = new List<PLine>();
             while (_pos < _lines.Length)
             {
-                string l = _lines[_pos];
+                PLine l = _lines[_pos];
                 if (IsBlank(l)) break;
+                if (lines.Count > 0 && IndentOf(l) >= 4)
+                {
+                    lines.Add(l);
+                    _pos++;
+                    continue;
+                }
+                if (lines.Count > 0 && TryListMarker(l, out ListMarkerInfo lm) && lm.IsOrdered && lm.Start != 1)
+                {
+                    lines.Add(l);
+                    _pos++;
+                    continue;
+                }
                 if (StartsNewBlock(l)) break;
-                if (lines.Count > 0 && IsSetextUnderline(l, out _)) break;
+                if (lines.Count > 0 && IsSetextUnderline(l.Text, out _)) break;
                 lines.Add(l);
                 _pos++;
             }
             if (lines.Count == 0) return false;
 
-            if (_pos < _lines.Length && IsSetextUnderline(_lines[_pos], out int level))
+            if (_pos < _lines.Length && IsSetextUnderline(_lines[_pos].Text, out int level))
             {
                 _pos++;
                 var h = new HeadingBlock(level);
-                h.Inlines.AddRange(new InlineParser(string.Join("\n", lines), _references).Parse());
+                h.Inlines.AddRange(new InlineParser(JoinLines(lines), _references, true).Parse());
                 container.Add(h);
                 return true;
             }
 
-            if (lines.Count == 1 && _pos < _lines.Length && IsTableDelimiter(_lines[_pos], out List<TableAlign> aligns))
+            if (lines.Count == 1 && _pos < _lines.Length && IsTableDelimiter(_lines[_pos].Text, out List<TableAlign> aligns))
             {
                 _pos++;
                 var table = new TableBlock();
                 table.Aligns.AddRange(aligns);
                 table.HasHeader = true;
-                table.Rows.Add(ParseTableRow(lines[0], aligns.Count));
+                table.Rows.Add(ParseTableRow(lines[0].Text, aligns.Count));
                 while (_pos < _lines.Length)
                 {
-                    string r = _lines[_pos];
-                    if (IsBlank(r) || StartsNewBlock(r) || r.IndexOf('|') < 0) break;
-                    table.Rows.Add(ParseTableRow(r, aligns.Count));
+                    PLine r = _lines[_pos];
+                    if (IsBlank(r) || StartsNewBlock(r) || r.Text.IndexOf('|') < 0) break;
+                    table.Rows.Add(ParseTableRow(r.Text, aligns.Count));
                     _pos++;
                 }
                 container.Add(table);
@@ -672,9 +784,21 @@ namespace WizardMD.Core
             }
 
             var p = new ParagraphBlock();
-            p.Inlines.AddRange(new InlineParser(string.Join("\n", lines), _references).Parse());
+            foreach (var l in lines) p.RawLines.Add(l.Text);
+            p.Inlines.AddRange(new InlineParser(JoinLines(lines), _references, true).Parse());
             container.Add(p);
             return true;
+        }
+
+        private static string JoinLines(List<PLine> lines)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (i > 0) sb.Append('\n');
+                sb.Append(lines[i].Text);
+            }
+            return sb.ToString();
         }
 
         private TableRow ParseTableRow(string line, int alignCount)
@@ -757,29 +881,29 @@ namespace WizardMD.Core
             return true;
         }
 
-        private static bool StartsNewBlock(string line)
+        private static bool StartsNewBlock(PLine line)
         {
             if (IsBlank(line)) return false;
             if (IndentOf(line) >= 4) return true;
-            string t = line.Substring(Math.Min(IndentOf(line), 3));
+            string t = line.Offset < line.Text.Length ? line.Text.Substring(Math.Min(line.Offset, 3)) : "";
             if (t.Length == 0) return false;
             if (t[0] == '>') return true;
-            if (TryAtx(line, out _, out _)) return true;
-            if (IsThematicBreak(line)) return true;
-            if (TryFence(line, out _, out _)) return true;
+            if (TryAtx(line.Text, out _, out _)) return true;
+            if (IsThematicBreak(line.Text)) return true;
+            if (TryFence(line.Text, out _, out _)) return true;
             if (TryListMarker(line, out _)) return true;
             return false;
         }
 
-        private static bool IsLazyContinuation(string line)
+        private static bool IsLazyContinuation(PLine line)
         {
             if (IsBlank(line)) return false;
             if (IndentOf(line) >= 4) return false;
-            string t = line.Substring(Math.Min(IndentOf(line), 3));
+            string t = line.Offset < line.Text.Length ? line.Text.Substring(Math.Min(line.Offset, 3)) : "";
             if (t.Length == 0) return false;
-            if (TryAtx(line, out _, out _)) return false;
-            if (IsThematicBreak(line)) return false;
-            if (TryFence(line, out _, out _)) return false;
+            if (TryAtx(line.Text, out _, out _)) return false;
+            if (IsThematicBreak(line.Text)) return false;
+            if (TryFence(line.Text, out _, out _)) return false;
             if (TryListMarker(line, out _)) return false;
             if (t[0] == '>') return false;
             return true;
