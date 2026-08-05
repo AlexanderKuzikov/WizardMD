@@ -8,7 +8,7 @@
 | Окружение | готово | .NET SDK 8.0.423 (`%LOCALAPPDATA%\dotnet`, PATH user), WebView2 151.0.4129.59 |
 | Решение | создано | WizardMD.sln: Core (netstandard2.0), App (net8.0-windows WPF), Tests (xUnit) |
 | Ядро-парсер | **готово** | Шаг 3. BlockParser + InlineParser + AST + HtmlRenderer. **spec.json 0.30: 528/652 (81.0%)** — цель 80-90% достигнута |
-| Рендерер | не начато | Шаг 2 — WPF + WebView2 |
+| Рендерер | **готово** | Шаг 2. WPF + WebView2 (NuGet 1.0.2592.51), темы light/dark, подсветка синтаксиса (zero-dep JS, 20 языков), drag&drop, Ctrl+O, CLI `<file.md>` |
 | COM-превью | не начато | Шаг 1 — net48, IPreviewHandler |
 | GitHub | синхронизирован | Коммиты в main (частично GitHub Desktop autocommit) |
 
@@ -24,9 +24,9 @@
 | # | Priority | Описание |
 |---|----------|----------|
 | 1 | med | Spec-тесты: остаток 124 примера — HTML blocks (44, вне подмножества), Raw HTML (12, вне), сложные emphasis/link/nested-list кейсы. Дальнейшее повышение — по желанию |
-| 2 | med | Golden-тесты на реальные .md: тест-каркас есть (GoldenTests), прогон по README/CONTEXT/DECISIONS/HANDOFF |
-| 3 | low | Рендерер: подключить WebView2 NuGet, темы light/dark, подсветка синтаксиса (шаг 2) |
-| 4 | low | Ассоциация .md → WizardMD.App.exe (реестр, `--register`) |
+| 2 | med | Рендерер: относительные пути картинок не работают (NavigateToString, base about:blank). Решение — `SetVirtualHostNameToFolderMapping` на папку файла |
+| 3 | med | Ассоциация .md → WizardMD.App.exe (реестр, `--register`) |
+| 4 | low | Подсветка: проверить визуально на реальных файлах, расширить языки при необходимости |
 | 5 | low | COM-хендлер: исследовать рендер без WebView2 (шаг 1) |
 
 ## Грабли (из сессии)
@@ -41,6 +41,7 @@
 ## Журнал работ
 | Дата | Изменение |
 |------|-----------|
+| 2026-08-05 | Шаг 2 (рендерер): WPF + WebView2, `MarkdownPage` (темы light/dark через CSS-переменные, zero-dep JS-подсветка 20 языков), открытие файла (CLI-аргумент, Ctrl+O, drag&drop), smoke-тест старта. 87 тестов зелёные |
 | 2026-08-05 | Ядро-парсер реализовано: AST, BlockParser (offset-модель), InlineParser (delimiter stack), HtmlRenderer, entities. Прогон spec.json 0.30 — **81.0%** (528/652). Юнит-тесты: Block/Inline/Golden (~70 кейсов) + SpecTests. Сборка зелёная, 84 теста |
 
 ## Структура проекта

@@ -1,13 +1,13 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
+﻿using System.Windows;
 
 namespace WizardMD.App;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : Application
 {
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        string? file = e.Args.Length > 0 ? e.Args[0] : null;
+        new MainWindow(file).Show();
+    }
 }
-

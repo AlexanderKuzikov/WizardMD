@@ -3,10 +3,23 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:WizardMD.App"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-
-    </Grid>
+        Title="WizardMD" Height="800" Width="1100" MinHeight="400" MinWidth="600"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+    <Window.InputBindings>
+        <KeyBinding Key="O" Modifiers="Control" Command="{x:Static ApplicationCommands.Open}"/>
+    </Window.InputBindings>
+    <DockPanel>
+        <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
+            <ToolBar>
+                <Button x:Name="OpenButton" Content="Открыть…" Click="OpenButton_Click" ToolTip="Открыть .md файл (Ctrl+O)"/>
+                <Separator/>
+                <Button x:Name="ThemeButton" Content="Тёмная тема" Click="ThemeButton_Click" ToolTip="Переключить тему"/>
+                <Separator/>
+                <TextBlock x:Name="FilePathText" VerticalAlignment="Center" Foreground="Gray" Margin="8,0" TextTrimming="CharacterEllipsis" MaxWidth="600"/>
+            </ToolBar>
+        </ToolBarTray>
+        <wv2:WebView2 x:Name="WebView" Margin="0"/>
+    </DockPanel>
 </Window>
