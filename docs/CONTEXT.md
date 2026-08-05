@@ -57,6 +57,7 @@ WizardMD/
 │   │   ├── BlockParser.cs  # блоки + offset-модель
 │   │   ├── InlineParser.cs # inline + delimiters
 │   │   ├── HtmlRenderer.cs
+│   │   ├── HtmlPage.cs     # HTML-шаблон: темы + подсветка (App и Preview)
 │   │   ├── Markdown.cs     # фасад Parse/ToHtml
 │   │   ├── MarkdownUtil.cs # normalize label, url, entities
 │   │   └── HtmlEntities.gen.cs
