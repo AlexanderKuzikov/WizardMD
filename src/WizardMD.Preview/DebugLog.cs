@@ -12,7 +12,10 @@ namespace WizardMD.Preview
         private static readonly string[] Paths =
         {
             System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wizardmd-preview.log"),
-            @"D:\GitHub\WizardMD\preview-debug.log"
+            @"D:\GitHub\WizardMD\preview-debug.log",
+            System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+                "Low", "wizardmd-preview.log")
         };
 
         public static void Write(string message)
