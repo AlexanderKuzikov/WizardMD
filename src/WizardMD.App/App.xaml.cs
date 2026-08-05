@@ -54,9 +54,27 @@ public partial class App : Application
                     FileAssociation.Unregister();
                     MessageBox.Show("Ассоциация .md → WizardMD удалена.", "WizardMD", MessageBoxButton.OK, MessageBoxImage.Information);
                     return 0;
+                case "--unblock":
+                {
+                    if (args.Length < 2)
+                    {
+                        MessageBox.Show("Использование: --unblock <путь\\файл>", "WizardMD", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return 1;
+                    }
+                    Motw.Unblock(args[1]);
+                    return 0;
+                }
+                case "--unblock-register":
+                    Motw.RegisterContextMenu();
+                    MessageBox.Show("Пункт «Разблокировать» добавлен в контекстное меню .md.", "WizardMD", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return 0;
+                case "--unblock-unregister":
+                    Motw.UnregisterContextMenu();
+                    MessageBox.Show("Пункт «Разблокировать» удалён из контекстного меню .md.", "WizardMD", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return 0;
                 default:
                     MessageBox.Show(
-                        $"Неизвестная команда: {args[0]}\n\nДоступно:\n--register-preview [путь\\WizardMD.Preview.dll]\n--unregister-preview\n--register\n--unregister",
+                        $"Неизвестная команда: {args[0]}\n\nДоступно:\n--register-preview [путь\\WizardMD.Preview.dll]\n--unregister-preview\n--register\n--unregister\n--unblock <файл>\n--unblock-register\n--unblock-unregister",
                         "WizardMD", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return 1;
             }

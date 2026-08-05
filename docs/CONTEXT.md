@@ -26,6 +26,7 @@
 | 1 | med | Spec-тесты: остаток 124 примера — HTML blocks (44, вне подмножества), Raw HTML (12, вне), сложные emphasis/link/nested-list кейсы. Дальнейшее повышение — по желанию |
 | 2 | med | Рендерер: относительные пути картинок не работают (NavigateToString, base about:blank). Решение — `SetVirtualHostNameToFolderMapping` на папку файла |
 | 3 | med | Ассоциация .md → WizardMD.App.exe (реестр, `--register`). Команды готовы, не применены — спросить пользователя (переопределит текущий редактор) |
+| 5 | low | MOTW: политика SaveZoneInformation=1 применена (UAC); `--unblock` + контекстное меню готовы. Проверить на новых скачиваниях |
 | 4 | low | Подсветка: проверить визуально на реальных файлах, расширить языки при необходимости |
 
 ## Грабли (из сессии)
@@ -44,6 +45,7 @@
 - **WebBrowser legacy: повторный рендер в том же процессе → «Переход на веб-страницу отменен»** (MSHTML error page). Причины и фиксы: `AllowNavigation=false` блокирует навигацию после первой загрузки → `true`; `Stop()` перед `DocumentText` отменяет новую навигацию → убрать; форма только `Close` без `Dispose` копит MSHTML-объекты в prevhost → `SetParent(0)` + `Close` + `Dispose` в Unload.
 - **prevhost.exe держит net48 DLL** (WizardMD.Preview и WizardMD.Core): пересборка падает с MSB3021 «file is being used» → `taskkill /f /im prevhost.exe` перед сборкой.
 - **`DllSurrogate` — ТОЛЬКО REG_EXPAND_SZ** (`%SystemRoot%\system32\prevhost.exe`): `reg add /t REG_EXPAND_SZ` или `RegistryValueKind.ExpandString`. REG_SZ не раскрывает `%SystemRoot%` → prevhost не находится → «Невозможно выполнить предварительный просмотр». Registry.SetValue без типа пишет REG_SZ — грабля, из-за которой превью сломалось после перерегистрации кодом (2026-08-06).
+- **MOTW (Zone.Identifier) блокирует превью ДО вызова хендлера** (лог пуст), `AutomaticallyPreviewUntrustedFiles=1` работает только для ПОДПИСАННЫХ хендлеров. Снятие: `Unblock-File`, `--unblock <файл>` в WizardMD, контекстное меню «Разблокировать для превью» (`.md\shell\WizardMDUnblock`). Политика записи MOTW: `HKCU\...\Policies\Attachments\SaveZoneInformation=1` (требует UAC).
 
 ## Журнал работ
 | Дата | Изменение |
