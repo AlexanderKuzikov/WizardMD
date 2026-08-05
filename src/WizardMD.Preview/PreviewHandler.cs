@@ -119,7 +119,15 @@ namespace WizardMD.Preview
             {
                 try
                 {
-                    if (form != null) form.Invoke((MethodInvoker)form.Close);
+                    if (form != null)
+                    {
+                        form.Invoke((MethodInvoker)delegate
+                        {
+                            NativeMethods.SetParent(form.Handle, IntPtr.Zero);
+                            form.Close();
+                            form.Dispose();
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {

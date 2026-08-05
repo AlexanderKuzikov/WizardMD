@@ -12,7 +12,7 @@ namespace WizardMD.Preview
         private readonly WebBrowser _browser = new WebBrowser
         {
             Dock = DockStyle.Fill,
-            AllowNavigation = false,
+            AllowNavigation = true,
             AllowWebBrowserDrop = false,
             ScriptErrorsSuppressed = true,
             ScrollBarsEnabled = true
@@ -32,7 +32,6 @@ namespace WizardMD.Preview
             DebugLog.Write("ShowContent: загрузка DocumentText, html.Length=" + html.Length);
             try
             {
-                _browser.Stop();
                 _browser.DocumentText = html;
                 DebugLog.Write("ShowContent done");
             }
@@ -40,18 +39,6 @@ namespace WizardMD.Preview
             {
                 DebugLog.Write($"ShowContent EX: {ex}");
                 throw;
-            }
-        }
-
-        public void StopLoading()
-        {
-            try
-            {
-                _browser.Stop();
-            }
-            catch
-            {
-                // ignore
             }
         }
     }
