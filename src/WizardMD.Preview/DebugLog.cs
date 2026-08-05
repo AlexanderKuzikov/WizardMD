@@ -9,16 +9,21 @@ namespace WizardMD.Preview
     /// </summary>
     internal static class DebugLog
     {
-        private static readonly string Path = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(), "wizardmd-preview.log");
+        private static readonly string[] Paths =
+        {
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wizardmd-preview.log"),
+            @"D:\GitHub\WizardMD\preview-debug.log"
+        };
 
         public static void Write(string message)
         {
             try
             {
-                File.AppendAllText(
-                    Path,
-                    $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {message}\r\n");
+                var line = $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {message}\r\n";
+                foreach (var p in Paths)
+                {
+                    try { File.AppendAllText(p, line); } catch { }
+                }
             }
             catch
             {
