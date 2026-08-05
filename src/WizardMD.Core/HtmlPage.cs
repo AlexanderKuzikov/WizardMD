@@ -1,12 +1,12 @@
 using System.Text;
 
-namespace WizardMD.App;
+namespace WizardMD.Core;
 
 /// <summary>
 /// Строит полную HTML-страницу из markdown: темы light/dark, встроенная
 /// подсветка синтаксиса (zero-dependency JS), стили документа.
 /// </summary>
-public static class MarkdownPage
+public static class HtmlPage
 {
     private const string CssLight = """
         :root { color-scheme: light;
@@ -127,7 +127,7 @@ public static class MarkdownPage
     public static string Build(string markdown, bool dark)
     {
         var css = dark ? CssDark : CssLight;
-        var body = WizardMD.Core.Markdown.ToHtml(markdown ?? "");
+        var body = Markdown.ToHtml(markdown ?? "");
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"utf-8\">\n");
         sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
@@ -55,7 +55,7 @@ public partial class MainWindow : Window
     private void Render(string markdown)
     {
         _currentMarkdown = markdown;
-        WebView.NavigateToString(MarkdownPage.Build(markdown, _dark));
+        WebView.NavigateToString(WizardMD.Core.HtmlPage.Build(markdown, _dark));
     }
 
     private void OpenButton_Click(object sender, RoutedEventArgs e)

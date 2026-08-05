@@ -6,7 +6,7 @@ public class RendererPageTests
     public void Build_ProducesValidPage()
     {
         string md = "# Заголовок\n\n```csharp\nvar x = 1; // comment\n```\n";
-        string page = WizardMD.App.MarkdownPage.Build(md, dark: false);
+        string page = WizardMD.Core.HtmlPage.Build(md, dark: false);
         Assert.Contains("<!DOCTYPE html>", page);
         Assert.Contains("<h1>Заголовок</h1>", page);
         Assert.Contains("language-csharp", page);
@@ -17,7 +17,7 @@ public class RendererPageTests
     [Fact]
     public void Build_DarkThemeUsesDarkCss()
     {
-        string page = WizardMD.App.MarkdownPage.Build("# T", dark: true);
+        string page = WizardMD.Core.HtmlPage.Build("# T", dark: true);
         Assert.Contains("color-scheme: dark", page);
         Assert.DoesNotContain("color-scheme: light", page);
     }
@@ -25,7 +25,7 @@ public class RendererPageTests
     [Fact]
     public void Build_EmptyMarkdownProducesPage()
     {
-        string page = WizardMD.App.MarkdownPage.Build("", dark: false);
+        string page = WizardMD.Core.HtmlPage.Build("", dark: false);
         Assert.Contains("<main>", page);
         Assert.Contains("</main>", page);
     }
